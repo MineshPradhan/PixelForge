@@ -1,0 +1,46 @@
+{
+  "name": "pixelforge",
+  "version": "1.0.0",
+  "description": "PixelForge — Professional Photoshop Alternative for Windows",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "web": "node server.js",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "test": "node -e \"const fs = require('fs'), { execSync } = require('child_process'); fs.readdirSync('.').filter(f => f.startsWith('test-') && f.endsWith('.js')).sort().forEach(f => { console.log('\\n[TEST SUITE] ' + f); execSync('node ' + f, { stdio: 'inherit' }); });\""
+  },
+  "build": {
+    "appId": "com.pixelforge.studio",
+    "productName": "PixelForge Studio",
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "signAndEditExecutable": false,
+      "forceCodeSigning": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "directories": {
+      "output": "dist"
+    }
+  },
+  "keywords": [
+    "photoshop",
+    "image-editor",
+    "canvas",
+    "layers",
+    "electron",
+    "windows"
+  ],
+  "author": "Minesh",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^31.3.1",
+    "electron-builder": "^24.13.3"
+  }
+}
