@@ -126,7 +126,7 @@
 
 ---
 
-## 🚀 Running on Windows
+## Running on Windows
 
 ### Quick Option 1: 1-Click Launch
 Double-click [`run-pixelforge.bat`](file:///C:/Users/Minesh/Downloads/Do_It/PixelForge/run-pixelforge.bat):
