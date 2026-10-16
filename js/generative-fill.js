@@ -223,6 +223,21 @@ class GenerativeFillEngine {
             // Inpaint region
             const scale = pWeights.detailScale;
             const targetColor = pWeights.colors.length > 0 ? pWeights.colors[varIdx % pWeights.colors.length] : [ctxR, ctxG, ctxB];
+            const hasExplicitColor = pWeights.colors.length > 0;
+
+            // Collect frontier candidate points for structural texture matching
+            const frontierPoints = [];
+            for (let fy = 1; fy < h - 1; fy += 2) {
+                for (let fx = 1; fx < w - 1; fx += 2) {
+                    const fIdx = fy * w + fx;
+                    if (mask[fIdx] === 0) {
+                        // Check if near border
+                        if (mask[fIdx - 1] > 0 || mask[fIdx + 1] > 0 || mask[fIdx - w] > 0 || mask[fIdx + w] > 0) {
+                            frontierPoints.push({ x: fx, y: fy });
+                        }
+                    }
+                }
+            }
 
             for (let y = 0; y < h; y++) {
                 const rStart = y * w;
@@ -239,10 +254,26 @@ class GenerativeFillEngine {
                     const n2 = fbm(normX * 1.5 + 50, normY * 1.5 + 50, 3);
                     const n3 = fbm(normX * 3.0 + 100, normY * 3.0 + 100, 2);
 
+                    // Sample nearest frontier structural texture
+                    let patchR = ctxR, patchG = ctxG, patchB = ctxB;
+                    if (frontierPoints.length > 0 && !hasExplicitColor) {
+                        // Find pseudo-random nearest boundary patch biased by noise
+                        const fpIdx = Math.floor(Math.abs(n1 * 1000 + varIdx * 17)) % frontierPoints.length;
+                        const pt = frontierPoints[fpIdx];
+                        const sPatchIdx = (pt.y * w + pt.x) * 4;
+                        patchR = src[sPatchIdx];
+                        patchG = src[sPatchIdx + 1];
+                        patchB = src[sPatchIdx + 2];
+                    }
+
+                    const baseR = hasExplicitColor ? targetColor[0] : (patchR * 0.7 + ctxR * 0.3);
+                    const baseG = hasExplicitColor ? targetColor[1] : (patchG * 0.7 + ctxG * 0.3);
+                    const baseB = hasExplicitColor ? targetColor[2] : (patchB * 0.7 + ctxB * 0.3);
+
                     // Combine harmonics with prompt biasing
-                    let synR = targetColor[0] * (0.8 + n1 * 0.4) + n3 * 20;
-                    let synG = targetColor[1] * (0.8 + n2 * 0.4) + n3 * 20;
-                    let synB = targetColor[2] * (0.8 + (n1 + n2) * 0.2) + n3 * 20;
+                    let synR = baseR * (0.8 + n1 * 0.4) + n3 * 20;
+                    let synG = baseG * (0.8 + n2 * 0.4) + n3 * 20;
+                    let synB = baseB * (0.8 + (n1 + n2) * 0.2) + n3 * 20;
 
                     // Apply prompt temperature / warmth
                     synR += pWeights.warmth * 40;

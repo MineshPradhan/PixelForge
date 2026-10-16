@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=PixelForge Studio
+Comment=Professional Photoshop Alternative for Linux & Windows
+GenericName=Image Editor
+Exec=pixelforge %F
+Icon=pixelforge
+Type=Application
+StartupNotify=true
+StartupWMClass=PixelForge Studio
+Categories=Graphics;RasterEditor;2DGraphics;Photography;
+MimeType=image/png;image/jpeg;image/webp;image/tiff;image/vnd.adobe.photoshop;image/x-radiance;image/gif;image/bmp;image/svg+xml;application/x-pixelforge;
+Keywords=photoshop;editor;image;graphics;layers;photo;raw;retouching;
+Terminal=false

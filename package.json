@@ -21,6 +21,17 @@
       "signAndEditExecutable": false,
       "forceCodeSigning": false
     },
+    "linux": {
+      "target": [
+        "AppImage",
+        "tar.gz",
+        "deb"
+      ],
+      "category": "Graphics",
+      "icon": "assets/icon.png",
+      "synopsis": "Professional Photoshop Alternative for Linux & Windows",
+      "description": "PixelForge Studio is a professional digital photo editing, retouching, and graphic compositing suite with Photoshop parity."
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true

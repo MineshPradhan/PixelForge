@@ -5,24 +5,40 @@ const fs = require('fs');
 let mainWindow;
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
+  const isLinux = process.platform === 'linux';
+  const iconPath = path.join(__dirname, 'assets', 'icon.png');
+
+  const windowOptions = {
     width: 1440,
     height: 900,
     minWidth: 1024,
     minHeight: 680,
     backgroundColor: '#18181b',
     title: 'PixelForge Studio',
-    titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: '#18181b',
-      symbolColor: '#e4e4e7',
-      height: 34
-    },
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
     }
-  });
+  };
+
+  if (fs.existsSync(iconPath)) {
+    windowOptions.icon = iconPath;
+  }
+
+  if (isLinux) {
+    // Linux window managers (GNOME, KDE Plasma, XFCE) standard decorations
+    windowOptions.frame = true;
+  } else {
+    // Windows & macOS custom dark titlebar with native caption buttons
+    windowOptions.titleBarStyle = 'hidden';
+    windowOptions.titleBarOverlay = {
+      color: '#18181b',
+      symbolColor: '#e4e4e7',
+      height: 34
+    };
+  }
+
+  mainWindow = new BrowserWindow(windowOptions);
 
   mainWindow.loadFile('index.html');
 
