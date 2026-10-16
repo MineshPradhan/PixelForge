@@ -5403,9 +5403,9 @@ class PixelForgeApp {
     // Color Range Modal
     const crSample = document.getElementById('cr-sample-color');
     const crHex = document.getElementById('cr-sample-hex');
-    const crFuzz = document.getElementById('cr-fuzziness');
+    const crFuzz = document.getElementById('slider-cr-fuzziness') || document.getElementById('cr-fuzziness');
     const crValFuzz = document.getElementById('val-cr-fuzziness');
-    const crInvert = document.getElementById('cr-invert');
+    const crInvert = document.getElementById('check-cr-invert') || document.getElementById('cr-invert');
     const btnApplyCR = document.getElementById('btn-apply-color-range');
 
     if (crSample && crHex) {
@@ -7010,35 +7010,137 @@ class PixelForgeApp {
   async handleDroppedFiles(files) {
     if (!files || files.length === 0) return;
 
-    // Check for dropped Adobe Photoshop (.psd) files
+    // Helper to read file as ArrayBuffer safely
+    const readFileBuffer = async (file) => {
+      if (file.path && typeof window !== 'undefined' && typeof window.require !== 'undefined') {
+        try {
+          const fs = window.require('fs');
+          return fs.readFileSync(file.path);
+        } catch (e) {}
+      }
+      return new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = (e) => res(e.target.result);
+        r.onerror = rej;
+        r.readAsArrayBuffer(file);
+      });
+    };
+
+    // 1. Check for dropped Adobe Photoshop (.psd / .psb) files
     const psdFile = files.find(f => {
       const name = f.name || (f.path ? f.path.split(/[\\/]/).pop() : '') || '';
-      return name.toLowerCase().endsWith('.psd');
+      return name.toLowerCase().endsWith('.psd') || name.toLowerCase().endsWith('.psb');
     });
 
     if (psdFile) {
       try {
-        let buffer;
-        if (psdFile.path && typeof window.require !== 'undefined') {
-          const fs = window.require('fs');
-          buffer = fs.readFileSync(psdFile.path);
-        } else {
-          buffer = await new Promise((res, rej) => {
-            const r = new FileReader();
-            r.onload = (e) => res(e.target.result);
-            r.onerror = rej;
-            r.readAsArrayBuffer(psdFile);
-          });
-        }
+        const buffer = await readFileBuffer(psdFile);
         const name = psdFile.name || (psdFile.path ? psdFile.path.split(/[\\/]/).pop() : '') || 'Photoshop Document';
         this.loadProjectFromPsd(buffer, name);
       } catch (err) {
-        console.error('Failed to parse dropped PSD file:', err);
+        console.error('Failed to parse dropped PSD/PSB file:', err);
       }
       return;
     }
 
-    // Filter project files (.pforge)
+    // 2. Check for Radiance HDR (.hdr)
+    const hdrFile = files.find(f => {
+      const name = f.name || (f.path ? f.path.split(/[\\/]/).pop() : '') || '';
+      return name.toLowerCase().endsWith('.hdr');
+    });
+    if (hdrFile) {
+      try {
+        const buffer = await readFileBuffer(hdrFile);
+        this.loadHdrFromArrayBuffer(buffer, hdrFile.name || 'image.hdr');
+      } catch (err) {
+        console.error('Failed to parse dropped HDR file:', err);
+      }
+      return;
+    }
+
+    // 3. Check for OpenEXR (.exr)
+    const exrFile = files.find(f => {
+      const name = f.name || (f.path ? f.path.split(/[\\/]/).pop() : '') || '';
+      return name.toLowerCase().endsWith('.exr');
+    });
+    if (exrFile) {
+      try {
+        const buffer = await readFileBuffer(exrFile);
+        this.loadExrFromArrayBuffer(buffer, exrFile.name || 'render.exr');
+      } catch (err) {
+        console.error('Failed to parse dropped EXR file:', err);
+      }
+      return;
+    }
+
+    // 4. Check for Camera RAW (.dng, .cr2, .nef, .arw, .raw)
+    const rawFile = files.find(f => {
+      const name = f.name || (f.path ? f.path.split(/[\\/]/).pop() : '') || '';
+      return /\.(dng|cr2|nef|arw|raw)$/i.test(name);
+    });
+    if (rawFile) {
+      try {
+        const buffer = await readFileBuffer(rawFile);
+        this.loadRawFromArrayBuffer(buffer, rawFile.name || 'photo.dng');
+      } catch (err) {
+        console.error('Failed to parse dropped RAW file:', err);
+      }
+      return;
+    }
+
+    // 5. Check for Photoshop Brushes (.abr)
+    const abrFile = files.find(f => {
+      const name = f.name || (f.path ? f.path.split(/[\\/]/).pop() : '') || '';
+      return name.toLowerCase().endsWith('.abr');
+    });
+    if (abrFile) {
+      try {
+        const buffer = await readFileBuffer(abrFile);
+        const brushes = AdobePresetImporter.parseAbr(buffer);
+        this.loadCustomBrushes(brushes);
+        this.showToast(`Imported ${brushes.length} brushes from ${abrFile.name}`);
+      } catch (err) {
+        console.error('Failed to parse dropped ABR brush file:', err);
+      }
+      return;
+    }
+
+    // 6. Check for Adobe Swatches (.ase, .aco)
+    const swatchFile = files.find(f => {
+      const name = f.name || (f.path ? f.path.split(/[\\/]/).pop() : '') || '';
+      return name.toLowerCase().endsWith('.ase') || name.toLowerCase().endsWith('.aco');
+    });
+    if (swatchFile) {
+      try {
+        const buffer = await readFileBuffer(swatchFile);
+        const swatches = swatchFile.name.toLowerCase().endsWith('.aco') ?
+          AdobePresetImporter.parseAco(buffer) : AdobePresetImporter.parseAse(buffer);
+        this.loadCustomSwatches(swatches);
+        this.showToast(`Imported ${swatches.length} swatches from ${swatchFile.name}`);
+      } catch (err) {
+        console.error('Failed to parse dropped Swatch file:', err);
+      }
+      return;
+    }
+
+    // 7. Check for Custom Fonts (.ttf, .otf, .woff2, .woff)
+    const fontFile = files.find(f => {
+      const name = f.name || (f.path ? f.path.split(/[\\/]/).pop() : '') || '';
+      return /\.(ttf|otf|woff2|woff)$/i.test(name);
+    });
+    if (fontFile) {
+      try {
+        if (window.customFontLoader) {
+          const fontData = await window.customFontLoader.loadFontFromFile(fontFile);
+          this.showToast(`Installed custom font: ${fontData.family}`);
+        }
+      } catch (err) {
+        console.error('Failed to load dropped font file:', err);
+      }
+      return;
+    }
+
+    // 8. Filter project files (.pforge)
     const projectFiles = files.filter(f => {
       const name = f.name || (f.path ? f.path.split(/[\\/]/).pop() : '') || '';
       return name.toLowerCase().endsWith('.pforge');
@@ -7048,8 +7150,8 @@ class PixelForgeApp {
       const pf = projectFiles[0];
       try {
         let content;
-        if (pf.path) {
-          const fs = require('fs');
+        if (pf.path && typeof window !== 'undefined' && typeof window.require !== 'undefined') {
+          const fs = window.require('fs');
           content = fs.readFileSync(pf.path, 'utf8');
         } else {
           content = await new Promise((res, rej) => {
@@ -7067,7 +7169,7 @@ class PixelForgeApp {
       return;
     }
 
-    // Filter image files safely without throwing on missing properties
+    // 9. Standard raster images
     const imageFiles = files.filter(f => {
       const name = f.name || (f.path ? f.path.split(/[\\/]/).pop() : '') || '';
       const type = f.type || '';

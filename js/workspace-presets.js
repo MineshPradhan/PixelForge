@@ -174,7 +174,7 @@
 
       // Adjust sidebar width if set
       if (preset.sidebarWidth) {
-        const sidebar = document.querySelector('.right-sidebar') || document.getElementById('right-sidebar');
+        const sidebar = document.getElementById('right-dock') || document.querySelector('.right-sidebar') || document.getElementById('right-sidebar');
         if (sidebar) {
           sidebar.style.width = `${preset.sidebarWidth}px`;
         }

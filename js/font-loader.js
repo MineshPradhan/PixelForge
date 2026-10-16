@@ -175,6 +175,8 @@
       if (typeof document === 'undefined') return;
 
       const selectors = [
+        document.getElementById('text-font-family'),
+        document.getElementById('typo-font-family'),
         document.getElementById('tool-font-family'),
         document.getElementById('layer-text-font'),
         document.getElementById('character-font-family')

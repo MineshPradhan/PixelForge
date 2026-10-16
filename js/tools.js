@@ -3147,16 +3147,19 @@ class ToolManager {
       }
     }
 
-    const sSmooth = document.getElementById('re-smooth');
-    const sFeather = document.getElementById('re-feather');
-    const sContrast = document.getElementById('re-contrast');
-    const sShift = document.getElementById('re-shift');
+    const sRadius = document.getElementById('slider-re-radius') || document.getElementById('re-radius');
+    const sSmooth = document.getElementById('slider-re-smooth') || document.getElementById('re-smooth');
+    const sFeather = document.getElementById('slider-re-feather') || document.getElementById('re-feather');
+    const sContrast = document.getElementById('slider-re-contrast') || document.getElementById('re-contrast');
+    const sShift = document.getElementById('slider-re-shift') || document.getElementById('re-shift');
     const outMode = document.getElementById('re-output-mode');
 
+    if (sRadius) sRadius.value = 0;
     if (sSmooth) sSmooth.value = 0;
     if (sFeather) sFeather.value = 0;
     if (sContrast) sContrast.value = 0;
     if (sShift) sShift.value = 0;
+    if (document.getElementById('val-re-radius')) document.getElementById('val-re-radius').textContent = '0';
     if (document.getElementById('val-re-smooth')) document.getElementById('val-re-smooth').textContent = '0';
     if (document.getElementById('val-re-feather')) document.getElementById('val-re-feather').textContent = '0px';
     if (document.getElementById('val-re-contrast')) document.getElementById('val-re-contrast').textContent = '0%';
@@ -3165,14 +3168,15 @@ class ToolManager {
     let currentRefinedMask = baseMask;
 
     const updatePreview = () => {
+      const radius = parseInt(sRadius?.value || 0, 10);
       const smooth = parseInt(sSmooth?.value || 0, 10);
-      const feather = parseInt(sFeather?.value || 0, 10);
+      const feather = parseFloat(sFeather?.value || 0);
       const contrast = parseInt(sContrast?.value || 0, 10);
       const shiftEdge = parseInt(sShift?.value || 0, 10);
 
       if (typeof SelectionRefinementEngine !== 'undefined') {
         currentRefinedMask = SelectionRefinementEngine.refineSelection(baseMask, w, h, {
-          smooth, feather, contrast, shiftEdge
+          radius, smooth, feather, contrast, shiftEdge
         });
       }
 
@@ -3180,10 +3184,16 @@ class ToolManager {
       this.renderRefinePreview(currentRefinedMask, viewMode);
     };
 
-    [sSmooth, sFeather, sContrast, sShift].filter(Boolean).forEach(s => {
+    [sRadius, sSmooth, sFeather, sContrast, sShift].filter(Boolean).forEach(s => {
       s.oninput = () => {
-        const valEl = document.getElementById(`val-${s.id}`);
-        if (valEl) valEl.textContent = s.id === 're-feather' ? `${s.value}px` : (s.id === 're-smooth' ? s.value : `${s.value}%`);
+        const cleanId = s.id.replace(/^slider-/, '');
+        const valEl = document.getElementById(`val-${cleanId}`) || document.getElementById(`val-${s.id}`);
+        if (valEl) {
+          if (cleanId === 're-feather') valEl.textContent = `${s.value}px`;
+          else if (cleanId === 're-radius') valEl.textContent = `${s.value}`;
+          else if (cleanId === 're-smooth') valEl.textContent = `${s.value}`;
+          else valEl.textContent = `${s.value}%`;
+        }
         updatePreview();
       };
     });
