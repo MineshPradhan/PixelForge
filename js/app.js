@@ -2307,6 +2307,16 @@ class PixelForgeApp {
       case 'auto-blend-focus-stack':
         this.openFocusStackModal();
         break;
+      case 'automate-exposure-fusion':
+      case 'auto-blend-exposure-fusion':
+        this.openExposureFusionModal();
+        break;
+      case 'color-wheels-grading':
+        this.openColorWheelsModal();
+        break;
+      case 'perspective-warp':
+        this.openPerspectiveWarpModal();
+        break;
       case 'open-clone-source':
         this.openCloneSourceModal();
         break;
@@ -10478,6 +10488,445 @@ class PixelForgeApp {
         this.renderComposite();
         this.pushHistoryState('Auto-Blend Focus Stack');
         this.showToast('Focus Stacking Complete: Infinite Depth of Field Created!');
+        modal.classList.add('hidden');
+      };
+    }
+  }
+
+  openExposureFusionModal() {
+    const modal = document.getElementById('modal-exposure-fusion');
+    if (!modal) return;
+    const layers = this.layerManager.layers.filter(l => l.visible && !l.isGroup && l.type !== 'adjustment');
+    if (layers.length < 2) {
+      this.showToast('Exposure Fusion requires at least 2 visible raster layers', 'error');
+      return;
+    }
+    modal.classList.remove('hidden');
+
+    const sContrast = document.getElementById('fusion-contrast-weight');
+    const vContrast = document.getElementById('val-fusion-contrast-weight');
+    const sSaturation = document.getElementById('fusion-saturation-weight');
+    const vSaturation = document.getElementById('val-fusion-saturation-weight');
+    const sExposed = document.getElementById('fusion-exposed-weight');
+    const vExposed = document.getElementById('val-fusion-exposed-weight');
+    const sLevels = document.getElementById('fusion-pyramid-levels');
+    const vLevels = document.getElementById('val-fusion-pyramid-levels');
+    const checkMasks = document.getElementById('fusion-generate-masks');
+    const btnConfirm = document.getElementById('btn-confirm-exposure-fusion');
+
+    if (sContrast && vContrast) sContrast.oninput = () => { vContrast.textContent = sContrast.value; };
+    if (sSaturation && vSaturation) sSaturation.oninput = () => { vSaturation.textContent = sSaturation.value; };
+    if (sExposed && vExposed) sExposed.oninput = () => { vExposed.textContent = sExposed.value; };
+    if (sLevels && vLevels) sLevels.oninput = () => { vLevels.textContent = sLevels.value; };
+
+    if (btnConfirm) {
+      btnConfirm.onclick = () => {
+        const imageList = layers.map(l => l.ctx.getImageData(0, 0, l.width, l.height));
+        const engine = new ExposureFusionEngine({
+          wContrast: parseFloat(sContrast ? sContrast.value : 1.0),
+          wSaturation: parseFloat(sSaturation ? sSaturation.value : 1.0),
+          wExposedness: parseFloat(sExposed ? sExposed.value : 1.0),
+          numLevels: parseInt(sLevels ? sLevels.value : 4)
+        });
+
+        const fused = engine.fuseExposures(imageList);
+
+        if (checkMasks && checkMasks.checked) {
+          const masks = engine.generateWeightMasks(imageList);
+          for (let i = 0; i < layers.length; i++) {
+            const l = layers[i];
+            l.hasMask = true;
+            l.isMaskActive = true;
+            if (!l.maskCanvas) {
+              l.maskCanvas = document.createElement('canvas');
+              l.maskCanvas.width = l.width;
+              l.maskCanvas.height = l.height;
+              l.maskCtx = l.maskCanvas.getContext('2d');
+            }
+            l.maskCtx.putImageData(masks[i], 0, 0);
+          }
+        }
+
+        const fusedLayer = this.layerManager.createLayer('Exposure Fusion HDR Composite', this.width, this.height);
+        fusedLayer.ctx.putImageData(fused, 0, 0);
+        this.layerManager.renderLayerStackUI();
+        this.renderComposite();
+        this.pushHistoryState('Auto-Blend Exposure Fusion');
+        this.showToast('Exposure Fusion Complete: Balanced Dynamic Range Fused!');
+        modal.classList.add('hidden');
+      };
+    }
+  }
+
+  openColorWheelsModal() {
+    const modal = document.getElementById('modal-color-wheels');
+    if (!modal) return;
+    const active = this.layerManager.getActiveLayer();
+    if (!active || active.isGroup || active.type === 'adjustment') {
+      this.showToast('Please select a raster layer for Color Grading', 'error');
+      return;
+    }
+    modal.classList.remove('hidden');
+
+    if (!this.colorWheelsEngine) {
+      this.colorWheelsEngine = new ColorWheelsEngine();
+    }
+    const engine = this.colorWheelsEngine;
+
+    const canvasLift = document.getElementById('wheel-canvas-lift');
+    const canvasGamma = document.getElementById('wheel-canvas-gamma');
+    const canvasGain = document.getElementById('wheel-canvas-gain');
+
+    const redrawWheels = () => {
+      if (canvasLift) ColorWheelsEngine.renderWheel(canvasLift, engine.lift, 'Lift');
+      if (canvasGamma) ColorWheelsEngine.renderWheel(canvasGamma, engine.gamma, 'Gamma');
+      if (canvasGain) ColorWheelsEngine.renderWheel(canvasGain, engine.gain, 'Gain');
+    };
+    redrawWheels();
+
+    // Wheel drag interactions
+    const bindWheelDrag = (canvas, targetKey) => {
+      if (!canvas) return;
+      let dragging = false;
+      const updateWheelPos = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left - canvas.width / 2;
+        const my = e.clientY - rect.top - canvas.height / 2;
+        const radius = Math.min(canvas.width, canvas.height) / 2 - 8;
+        const dist = Math.hypot(mx, my);
+        const normDist = Math.min(1.0, dist / radius);
+        const angle = Math.atan2(my, mx);
+
+        const offsets = ColorWheelsEngine.polarToRgbOffset(angle, normDist, 100);
+        engine[targetKey].r = Math.round(offsets.r);
+        engine[targetKey].g = Math.round(offsets.g);
+        engine[targetKey].b = Math.round(offsets.b);
+        redrawWheels();
+      };
+
+      canvas.onmousedown = (e) => {
+        dragging = true;
+        updateWheelPos(e);
+      };
+      window.addEventListener('mousemove', (e) => {
+        if (dragging) updateWheelPos(e);
+      });
+      window.addEventListener('mouseup', () => {
+        dragging = false;
+      });
+    };
+
+    bindWheelDrag(canvasLift, 'lift');
+    bindWheelDrag(canvasGamma, 'gamma');
+    bindWheelDrag(canvasGain, 'gain');
+
+    // Luma sliders
+    const sLiftLuma = document.getElementById('wheel-lift-luma');
+    const vLiftLuma = document.getElementById('val-wheel-lift-luma');
+    const sGammaLuma = document.getElementById('wheel-gamma-luma');
+    const vGammaLuma = document.getElementById('val-wheel-gamma-luma');
+    const sGainLuma = document.getElementById('wheel-gain-luma');
+    const vGainLuma = document.getElementById('val-wheel-gain-luma');
+
+    if (sLiftLuma && vLiftLuma) sLiftLuma.oninput = () => {
+      engine.lift.y = parseInt(sLiftLuma.value);
+      vLiftLuma.textContent = sLiftLuma.value;
+    };
+    if (sGammaLuma && vGammaLuma) sGammaLuma.oninput = () => {
+      engine.gamma.y = parseInt(sGammaLuma.value);
+      vGammaLuma.textContent = sGammaLuma.value;
+    };
+    if (sGainLuma && vGainLuma) sGainLuma.oninput = () => {
+      engine.gain.y = parseInt(sGainLuma.value);
+      vGainLuma.textContent = sGainLuma.value;
+    };
+
+    // Master sliders
+    const sSat = document.getElementById('wheel-master-saturation');
+    const vSat = document.getElementById('val-wheel-master-saturation');
+    const sCon = document.getElementById('wheel-master-contrast');
+    const vCon = document.getElementById('val-wheel-master-contrast');
+
+    if (sSat && vSat) sSat.oninput = () => {
+      engine.saturation = parseInt(sSat.value);
+      vSat.textContent = `${sSat.value}%`;
+    };
+    if (sCon && vCon) sCon.oninput = () => {
+      engine.contrast = parseInt(sCon.value);
+      vCon.textContent = sCon.value;
+    };
+
+    // Reset buttons
+    const btnResetLift = document.getElementById('btn-reset-wheel-lift');
+    if (btnResetLift) btnResetLift.onclick = () => {
+      engine.lift = { r: 0, g: 0, b: 0, y: 0 };
+      if (sLiftLuma) sLiftLuma.value = 0;
+      if (vLiftLuma) vLiftLuma.textContent = '0';
+      redrawWheels();
+    };
+    const btnResetGamma = document.getElementById('btn-reset-wheel-gamma');
+    if (btnResetGamma) btnResetGamma.onclick = () => {
+      engine.gamma = { r: 0, g: 0, b: 0, y: 0 };
+      if (sGammaLuma) sGammaLuma.value = 0;
+      if (vGammaLuma) vGammaLuma.textContent = '0';
+      redrawWheels();
+    };
+    const btnResetGain = document.getElementById('btn-reset-wheel-gain');
+    if (btnResetGain) btnResetGain.onclick = () => {
+      engine.gain = { r: 0, g: 0, b: 0, y: 0 };
+      if (sGainLuma) sGainLuma.value = 0;
+      if (vGainLuma) vGainLuma.textContent = '0';
+      redrawWheels();
+    };
+    const btnResetAll = document.getElementById('btn-reset-all-wheels');
+    if (btnResetAll) btnResetAll.onclick = () => {
+      engine.reset();
+      if (sLiftLuma) sLiftLuma.value = 0;
+      if (vLiftLuma) vLiftLuma.textContent = '0';
+      if (sGammaLuma) sGammaLuma.value = 0;
+      if (vGammaLuma) vGammaLuma.textContent = '0';
+      if (sGainLuma) sGainLuma.value = 0;
+      if (vGainLuma) vGainLuma.textContent = '0';
+      if (sSat) sSat.value = 100;
+      if (vSat) vSat.textContent = '100%';
+      if (sCon) sCon.value = 0;
+      if (vCon) vCon.textContent = '0';
+      redrawWheels();
+    };
+
+    // Commit button
+    const btnApply = document.getElementById('btn-apply-color-wheels');
+    if (btnApply) {
+      btnApply.onclick = () => {
+        const srcData = active.ctx.getImageData(0, 0, active.width, active.height);
+        const graded = engine.apply(srcData);
+        active.ctx.putImageData(graded, 0, 0);
+        this.renderComposite();
+        this.pushHistoryState('3-Way Color Wheels Grading');
+        this.showToast('Color Grading applied successfully!');
+        modal.classList.add('hidden');
+      };
+    }
+  }
+
+  openPerspectiveWarpModal() {
+    const modal = document.getElementById('modal-perspective-warp');
+    if (!modal) return;
+    const active = this.layerManager.getActiveLayer();
+    if (!active || active.isGroup || active.type === 'adjustment') {
+      this.showToast('Please select a raster layer for Perspective Warp', 'error');
+      return;
+    }
+    modal.classList.remove('hidden');
+
+    if (!this.perspectiveWarpEngine) {
+      this.perspectiveWarpEngine = new PerspectiveWarpEngine();
+    }
+    const engine = this.perspectiveWarpEngine;
+    engine.reset();
+
+    const canvas = document.getElementById('perspective-warp-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    // Scale canvas view to fit source image
+    const w = canvas.width;
+    const h = canvas.height;
+    const scale = Math.min((w - 40) / active.width, (h - 40) / active.height);
+    const offsetX = (w - active.width * scale) / 2;
+    const offsetY = (h - active.height * scale) / 2;
+
+    // Create primary quad matching active layer bounds
+    engine.addQuad([
+      { x: offsetX + 10, y: offsetY + 10 },
+      { x: offsetX + active.width * scale - 10, y: offsetY + 10 },
+      { x: offsetX + active.width * scale - 10, y: offsetY + active.height * scale - 10 },
+      { x: offsetX + 10, y: offsetY + active.height * scale - 10 }
+    ]);
+
+    const btnLayout = document.getElementById('btn-pwarp-layout-mode');
+    const btnWarp = document.getElementById('btn-pwarp-warp-mode');
+    const btnAddQuad = document.getElementById('btn-pwarp-add-quad');
+    const btnReset = document.getElementById('btn-pwarp-reset');
+    const instruction = document.getElementById('pwarp-instruction-text');
+
+    const updateModeUI = () => {
+      if (engine.mode === 'layout') {
+        if (btnLayout) { btnLayout.className = 'btn-xs-accent'; }
+        if (btnWarp) { btnWarp.className = 'btn-xs-ghost'; }
+        if (instruction) instruction.innerHTML = '<strong>Layout Mode:</strong> Define planar quadrilateral grids over object surfaces. Adjacent pins snap together automatically to form shared hinge edges.';
+      } else {
+        if (btnLayout) { btnLayout.className = 'btn-xs-ghost'; }
+        if (btnWarp) { btnWarp.className = 'btn-xs-accent'; }
+        if (instruction) instruction.innerHTML = '<strong>Warp Mode:</strong> Drag corner pins to reshape perspective. Connected quads deform seamlessly across shared hinge planes.';
+      }
+      redraw();
+    };
+
+    if (btnLayout) btnLayout.onclick = () => {
+      engine.enterLayoutMode();
+      updateModeUI();
+    };
+    if (btnWarp) btnWarp.onclick = () => {
+      engine.enterWarpMode();
+      updateModeUI();
+    };
+    if (btnAddQuad) btnAddQuad.onclick = () => {
+      const q = engine.addQuad([
+        { x: offsetX + 30, y: offsetY + 30 },
+        { x: offsetX + 180, y: offsetY + 30 },
+        { x: offsetX + 180, y: offsetY + 180 },
+        { x: offsetX + 30, y: offsetY + 180 }
+      ]);
+      engine.snapAdjacentPins();
+      redraw();
+    };
+    if (btnReset) btnReset.onclick = () => {
+      engine.reset();
+      engine.addQuad([
+        { x: offsetX + 10, y: offsetY + 10 },
+        { x: offsetX + active.width * scale - 10, y: offsetY + 10 },
+        { x: offsetX + active.width * scale - 10, y: offsetY + active.height * scale - 10 },
+        { x: offsetX + 10, y: offsetY + active.height * scale - 10 }
+      ]);
+      updateModeUI();
+    };
+
+    let activeDrag = null; // { quadId, cornerIdx }
+
+    const redraw = () => {
+      ctx.clearRect(0, 0, w, h);
+
+      // Draw background thumbnail of active layer
+      ctx.drawImage(active.canvas, offsetX, offsetY, active.width * scale, active.height * scale);
+
+      // Dim background
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.fillRect(0, 0, w, h);
+
+      // Draw each quad
+      engine.quads.forEach(q => {
+        const pts = q.corners;
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) {
+          ctx.lineTo(pts[i].x, pts[i].y);
+        }
+        ctx.closePath();
+
+        ctx.fillStyle = engine.mode === 'layout' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(16, 185, 129, 0.15)';
+        ctx.fill();
+
+        ctx.strokeStyle = engine.mode === 'layout' ? '#3b82f6' : '#10b981';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Draw grid subdivisions
+        const sub = q.subdivisions || 4;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.lineWidth = 1;
+        for (let i = 1; i < sub; i++) {
+          const t = i / sub;
+          // Horizontal interpolant
+          const lx = (1 - t) * pts[0].x + t * pts[3].x;
+          const ly = (1 - t) * pts[0].y + t * pts[3].y;
+          const rx = (1 - t) * pts[1].x + t * pts[2].x;
+          const ry = (1 - t) * pts[1].y + t * pts[2].y;
+          ctx.beginPath();
+          ctx.moveTo(lx, ly);
+          ctx.lineTo(rx, ry);
+          ctx.stroke();
+
+          // Vertical interpolant
+          const tx = (1 - t) * pts[0].x + t * pts[1].x;
+          const ty = (1 - t) * pts[0].y + t * pts[1].y;
+          const bx = (1 - t) * pts[3].x + t * pts[2].x;
+          const by = (1 - t) * pts[3].y + t * pts[2].y;
+          ctx.beginPath();
+          ctx.moveTo(tx, ty);
+          ctx.lineTo(bx, by);
+          ctx.stroke();
+        }
+
+        // Draw corner pins
+        pts.forEach((p, idx) => {
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = engine.mode === 'layout' ? '#1d4ed8' : '#047857';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        });
+      });
+    };
+
+    redraw();
+
+    // Canvas pointer handling
+    canvas.onmousedown = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      activeDrag = null;
+      for (const q of engine.quads) {
+        for (let i = 0; i < q.corners.length; i++) {
+          const c = q.corners[i];
+          if (Math.hypot(c.x - mx, c.y - my) <= 12) {
+            activeDrag = { quadId: q.id, cornerIdx: i };
+            break;
+          }
+        }
+        if (activeDrag) break;
+      }
+    };
+
+    window.addEventListener('mousemove', (e) => {
+      if (!activeDrag) return;
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      engine.movePin(activeDrag.quadId, activeDrag.cornerIdx, mx, my);
+      if (engine.mode === 'layout') {
+        engine.snapAdjacentPins();
+      }
+      redraw();
+    });
+
+    window.addEventListener('mouseup', () => {
+      activeDrag = null;
+    });
+
+    // Commit button
+    const btnApply = document.getElementById('btn-apply-perspective-warp');
+    if (btnApply) {
+      btnApply.onclick = () => {
+        if (engine.mode === 'layout') {
+          engine.enterWarpMode();
+        }
+        // Normalize quad coordinates back to layer coordinate space
+        const mappedEngine = new PerspectiveWarpEngine();
+        engine.quads.forEach(q => {
+          const initMapped = q.initialCorners.map(c => ({
+            x: (c.x - offsetX) / scale,
+            y: (c.y - offsetY) / scale
+          }));
+          const currMapped = q.corners.map(c => ({
+            x: (c.x - offsetX) / scale,
+            y: (c.y - offsetY) / scale
+          }));
+          const newQ = mappedEngine.addQuad(currMapped);
+          newQ.initialCorners = initMapped;
+        });
+
+        const srcData = active.ctx.getImageData(0, 0, active.width, active.height);
+        const warped = mappedEngine.applyWarp(srcData);
+        active.ctx.putImageData(warped, 0, 0);
+        this.renderComposite();
+        this.pushHistoryState('Perspective Warp');
+        this.showToast('Perspective Warp committed cleanly!');
         modal.classList.add('hidden');
       };
     }

@@ -49,6 +49,9 @@
 | **Lens Correction Profiles (Lensfun Parity)** | ✅ Calibrated profiles (Distortion, TCA, Vignette) | ✅ Lens Profile Creator | ✅ Lens Correction Engine | ⚠️ Lensfun plugin dependency |
 | **Vector Variable-Width Stroke Profiling** | ✅ Dynamic arc-length normal ribbon profiles | ⚠️ Stroke profiles / Width Tool | ✅ Pressure / Width Profiles | ❌ Uniform strokes only |
 | **Spot Color Prepress Inks & Plates** | ✅ 8-bit density buffers + Pantone/Metallic/White | ✅ Native Spot Channels | ✅ Spot Inks | ❌ CMYK/RGB only |
+| **Multi-Exposure HDR Exposure Fusion** | ✅ Mertens multi-scale Laplacian pyramid fusion | ✅ Merge to HDR Pro | ✅ HDR Merge | ⚠️ CLI enfuse only |
+| **3-Way Color Wheels Grading (Lift/Gamma/Gain)** | ✅ Cinema-grade 2D chromaticity vector pucks | ⚠️ Color Balance sliders only | ⚠️ Color balance only | ⚠️ Color balance only |
+| **Perspective Warp Studio (Multi-Plane)** | ✅ Two-phase connected quads with shared hinges | ✅ Perspective Warp | ❌ Single plane only | ❌ Perspective tool only |
 | **License & Pricing** | **Free & Open Source (MIT)** | \$239.88 / year subscription | \$69.99 perpetual | Free & Open Source (GPL) |
 
 ---
@@ -154,6 +157,24 @@
   - Decomposes each unit color cube into 6 tetrahedra along the diagonal axis, sampling only 4 lattice vertices instead of 8.
   - Eliminates diagonal chromatic interpolation artifacts, posterization, and shadow banding inherent to conventional trilinear interpolation.
   - Seamlessly applies to both raster layers and non-destructive Color Lookup adjustment layers.
+
+### 🌅 Multi-Exposure HDR Exposure Fusion Engine
+- Mertens-Kautz-Van Reeth (2007) exposure blending via `ExposureFusionEngine`:
+  - Directly fuses bracketed exposure stacks (-2EV, 0EV, +2EV) without requiring an intermediate 32-bit floating-point radiance map or tone-reproduction curves.
+  - Evaluates 3 per-pixel quality metrics: **Contrast** (discrete 3x3 Laplacian filter $|\nabla^2 L|$), **Saturation** (standard deviation across RGB channels), and **Well-Exposedness** (Gaussian curve centered at 0.5 with $\sigma=0.2$).
+  - Multi-scale Laplacian & Gaussian pyramid decomposition across configurable octave depths prevents edge halos, seam boundaries, and shadow noise.
+
+### 🎡 3-Way Color Wheels Grading Studio (Lift, Gamma, Gain)
+- Cinematic digital color balance workflow via `ColorWheelsEngine`:
+  - 3 interactive HTML5 circular color grading vector wheels: **Lift (Shadows)** with $(1 - Y)^2$ falloff, **Gamma (Midtones)** with $4Y(1 - Y)$ parabolic curve, and **Gain (Highlights)** with $Y^2$ growth.
+  - Interactive 2D chromaticity pucks drag smoothly across polar color discs to inject hue/saturation offsets into targeted tonal zones.
+  - Master luminance offset sliders per wheel, plus global Rec.709 saturation and contrast controls.
+
+### 📐 Perspective Warp Studio (Multi-Plane Planar Mesh)
+- Photoshop parity architectural transformation via `PerspectiveWarpEngine`:
+  - **Layout Mode**: Define multiple planar quadrilateral grids over distinct 3D surfaces with automatic corner pin snapping along shared hinge edges.
+  - **Warp Mode**: Freely reshape perspective camera angles; shared hinge pins propagate co-movement across adjacent quads to maintain coplanar surface continuity.
+  - 8-DOF Direct Linear Transformation (DLT) computes individual $3 \times 3$ projective homography matrices $H_k$ with backward subpixel bilinear texture interpolation.
 
 ---
 
@@ -367,16 +388,17 @@ node server.js
 
 ## 🧪 Test Suites & Validation
 
-PixelForge Studio maintains **100% test coverage** across all modules with automated regression and black-box component discovery suites (48 test suites total):
+PixelForge Studio maintains **100% test coverage** across all modules with automated regression and black-box component discovery suites (49 test suites total):
 
 ```bash
 npm test
 ```
 
 ### Verified Test Suites:
+- `test-exposure-wheels-perspective.js`: Mertens multi-exposure HDR fusion, 3-way color grading wheels, and multi-plane perspective warp studio (**Passed**).
 - `test-frontiers-wrap-onion-lut.js`: Seamless toroidal wrap-around view/brush, animation onion skinning, and 3D LUT tetrahedral simplex interpolation (**Passed**).
 - `test-frontiers-gap-closing.js`: Lens profile database, vector variable-width stroke ribbons, spot color prepress channels (**Passed**).
-- `test-blackbox-components-audit.js`: Audits all 176 menu actions, 49 tools, and 61 modals (**0 errors**).
+- `test-blackbox-components-audit.js`: Audits all 180 menu actions, 49 tools, and 64 modals (**0 errors**).
 - `test-raw-container.js`: DNG, CR2, NEF, ARW binary IFD reading, CFA demosaic roundtrip (**Passed**).
 - `test-cmyk-export.js`: Native 4-channel CMYK TIFF & prepress separation plates (**Passed**).
 - `test-exr-codec.js`: OpenEXR 32-bit linear half-float encoder/decoder & ACES tonemap (**Passed**).

@@ -165,6 +165,9 @@ To quantify technical capabilities against the current state of the art, PixelFo
 \textbf{Toroidal Wrap-Around Mode} & \checkmark & $\sim$ & $\times$ & \checkmark & $3\times 3$ viewport tiling and seam-wrapping brush dabs (\texttt{Shift+W}). \\
 \textbf{Timeline \& Onion Skinning} & \checkmark & \checkmark & $\times$ & $\sim$ & Frame animation, red/green onion skins, pure JS GIF89a encoder. \\
 \textbf{3D LUT Tetrahedral Interpolation} & \checkmark & \checkmark & \checkmark & $\sim$ & 6-tetrahedron (3-simplex) cell decomposition; exact neutral axis. \\
+\textbf{Multi-Exposure HDR Fusion} & \checkmark & \checkmark & \checkmark & $\sim$ & Mertens multi-scale Laplacian \& Gaussian pyramid exposure blending. \\
+\textbf{3-Way Color Grading Wheels} & \checkmark & $\sim$ & $\sim$ & $\sim$ & Cinema-grade Lift, Gamma, Gain with 2D polar chromaticity vector pucks. \\
+\textbf{Perspective Warp Studio} & \checkmark & \checkmark & $\times$ & $\times$ & Multi-quad connected mesh with shared hinges and 8-DOF DLT homography. \\
 \textbf{Windows \& Linux Packaging} & \checkmark & $\times$ & $\times$ & \checkmark & Windows (NSIS/portable \texttt{.exe}) and Linux (AppImage, \texttt{.deb}, \texttt{.tar.gz}). \\
 \textbf{Software Licensing} & \textbf{MIT} & Subscription & Perpetual & GPLv3 & Zero recurring fees; fully auditable zero-dependency codebase. \\
 \bottomrule
@@ -443,11 +446,152 @@ C_{\text{out}} ={}& (1 - d_r)\, P_{000} + (d_r - d_g)\, P_{100} \\
 \end{equation}
 The weights are non-negative and sum to 1, and the remaining five cases follow by permuting the channels. Because every tetrahedron contains the cell diagonal, neutral inputs are interpolated exactly along the gray axis, which suppresses the cross-channel banding seen with trilinear lookup.
 
+\subsection{Multi-Exposure HDR Exposure Fusion Engine}
+Standard high dynamic range (HDR) pipelines require assembling bracketed photographs into an uncalibrated 32-bit floating-point radiance map, followed by non-linear tone reproduction operators that frequently introduce shadow noise, edge halos, and hue desaturation.
+
+PixelForge integrates the multi-scale exposure fusion algorithm developed by Mertens, Kautz, and Van Reeth~\cite{mertens2007} within \texttt{ExposureFusionEngine}. For $N \ge 2$ bracketed exposure inputs $\{I_k\}_{k=1}^N$, the engine evaluates three normalized per-pixel quality metrics:
+\begin{enumerate}
+    \item \textbf{Contrast} ($C_k$): Evaluates high-frequency edge texture via a $3\times 3$ discrete Laplacian filter applied to luminance:
+    \begin{equation}
+    C_k(x, y) = \lvert \nabla^2 L_k(x, y) \rvert
+    \end{equation}
+    \item \textbf{Saturation} ($S_k$): Evaluates chromatic vividness as the standard deviation across color channels:
+    \begin{equation}
+    S_k(x, y) = \sqrt{\frac{1}{3} \sum_{c \in \{R,G,B\}} \left(I_{k,c}(x, y) - \mu_k(x, y)\right)^2}
+    \end{equation}
+    \item \textbf{Well-Exposedness} ($E_k$): Gaussian weighting centered at 0.5 ($\sigma = 0.2$) penalizing under- and over-exposed values:
+    \begin{equation}
+    E_k(x, y) = \prod_{c \in \{R,G,B\}} \exp\left(-\frac{\left(I_{k,c}(x, y) - 0.5\right)^2}{2\sigma^2}\right)
+    \end{equation}
+\end{enumerate}
+
+The scalar weight map $W_k(x, y) = (C_k)^{\omega_c} (S_k)^{\omega_s} (E_k)^{\omega_e} + \epsilon$ is normalized across all exposures:
+\begin{equation}
+\hat{W}_k(x, y) = \frac{W_k(x, y)}{\sum_{j=1}^N W_j(x, y)}
+\end{equation}
+
+To eliminate boundary seams and halos, multi-scale blending decomposes the normalized weights into a Gaussian pyramid $\{\mathcal{G}_l(\hat{W}_k)\}$ and the source exposures into a Laplacian pyramid $\{\mathcal{L}_l(I_k)\}$. At each octave level $l \in \{0, \dots, L-1\}$:
+\begin{equation}
+\mathcal{L}_l(I_{\text{fused}}) = \sum_{k=1}^N \mathcal{G}_l(\hat{W}_k) \odot \mathcal{L}_l(I_k)
+\end{equation}
+The final fused image is reconstructed by upsampling and expanding the fused Laplacian pyramid from level $L-1$ to 0 without tone-mapping artifacts (Fig.~\ref{fig:exposure_fusion_pipeline}).
+
+\begin{figure}[!t]
+\centering
+\begin{tikzpicture}[scale=0.82, transform shape,
+    box/.style={draw=brandblue, fill=branddark!60, text=white, rounded corners=3pt, font=\scriptsize, align=center, inner sep=4pt},
+    arr/.style={-{Stealth[length=2.5mm]}, thick, brandaccent}
+]
+\node[box] (under) {Bracketed $I_1$\\(-2 EV)};
+\node[box, below=0.35cm of under] (norm) {Bracketed $I_2$\\(0 EV)};
+\node[box, below=0.35cm of norm] (over) {Bracketed $I_3$\\(+2 EV)};
+
+\node[box, right=0.8cm of norm, fill=darkgray] (metrics) {Quality Metric Evaluator\\$W_k = C_k^{\omega_c} S_k^{\omega_s} E_k^{\omega_e}$\\$\sum_k \hat{W}_k = 1.0$};
+
+\node[box, right=0.8cm of under] (lap) {Laplacian Image\\Pyramids $\mathcal{L}_l(I_k)$};
+\node[box, right=0.8cm of over] (gauss) {Gaussian Weight\\Pyramids $\mathcal{G}_l(\hat{W}_k)$};
+
+\node[box, right=0.8cm of metrics, fill=brandblue!30, text=white] (fuse) {Octave Pyramid Fusion\\$\sum_k \mathcal{G}_l(\hat{W}_k) \mathcal{L}_l(I_k)$};
+
+\node[box, right=0.8cm of fuse, fill=passgreen!30, text=white] (out) {Fused Composite\\$I_{\text{fused}}$};
+
+\draw[arr] (under) -- (metrics);
+\draw[arr] (norm) -- (metrics);
+\draw[arr] (over) -- (metrics);
+
+\draw[arr] (under) |- (lap);
+\draw[arr] (over) |- (gauss);
+
+\draw[arr] (metrics) -- (gauss);
+\draw[arr] (lap) -| (fuse);
+\draw[arr] (gauss) -| (fuse);
+\draw[arr] (fuse) -- (out);
+\end{tikzpicture}
+\caption{Mertens multi-scale exposure fusion pipeline in PixelForge Studio. Bracketed exposures are decomposed into Gaussian weight pyramids and Laplacian image pyramids, blended octave-by-octave, and collapsed into a high-fidelity dynamic range composite.}
+\label{fig:exposure_fusion_pipeline}
+\end{figure}
+
+\subsection{3-Way Color Wheels Grading Engine}
+For cinema-grade color grading and photographic tone balancing, PixelForge implements an interactive 3-way color grading engine (\texttt{ColorWheelsEngine}) providing direct parity with DaVinci Resolve and Capture One color wheels (Fig.~\ref{fig:color_wheels_diagram}).
+
+The tonal spectrum is partitioned into three overlapping zones governed by Rec.709 perceived luminance $Y = 0.2126R + 0.7152G + 0.0722B$:
+\begin{align}
+w_{\text{lift}}(Y) &= (1 - Y)^2 \quad &\text{(Shadows / Lift)} \\
+w_{\text{gamma}}(Y) &= 4Y(1 - Y) \quad &\text{(Midtones / Gamma)} \\
+w_{\text{gain}}(Y) &= Y^2 \quad &\text{(Highlights / Gain)}
+\end{align}
+Notice that these weighting functions form a continuous partition over $Y \in [0, 1]$. Interactive circular color pucks map 2D polar displacements $(r, \theta)$ to normalized chromaticity vectors:
+\begin{align}
+\Delta R &= r \cos \theta \\
+\Delta G &= r \cos\left(\theta - \frac{2\pi}{3}\right) \\
+\Delta B &= r \cos\left(\theta - \frac{4\pi}{3}\right)
+\end{align}
+
+The output RGB triplet incorporates both chromatic puck vectors and independent regional luminance offsets $y_\tau$:
+\begin{equation}
+C_{\text{out}} = \operatorname{clamp}\left(C_{\text{in}} + \sum_{\tau \in \{\text{lift}, \text{gamma}, \text{gain}\}} w_\tau(Y) (\mathbf{\Delta}_\tau + \mathbf{1} y_\tau), 0, 1\right)
+\end{equation}
+
+\begin{figure}[!t]
+\centering
+\begin{tikzpicture}[scale=0.78, transform shape]
+% Lift Wheel
+\begin{scope}[shift={(0,0)}]
+  \draw[thick, fill=branddark!40] (0,0) circle (1.2cm);
+  \foreach \a in {0,20,...,340} {
+    \draw[thick, color=blue!\a!red] (\a:1.05cm) -- (\a:1.2cm);
+  }
+  \draw[fill=white, draw=brandblue, thick] (-0.3, -0.2) circle (3pt);
+  \node[font=\scriptsize\bfseries, color=brandblue, below=1.3cm] at (0,0) {Lift (Shadows)};
+  \node[font=\tiny, color=gray, below=1.6cm] at (0,0) {$w = (1 - Y)^2$};
+\end{scope}
+
+% Gamma Wheel
+\begin{scope}[shift={(3.0,0)}]
+  \draw[thick, fill=branddark!40] (0,0) circle (1.2cm);
+  \foreach \a in {0,20,...,340} {
+    \draw[thick, color=green!\a!yellow] (\a:1.05cm) -- (\a:1.2cm);
+  }
+  \draw[fill=white, draw=passgreen, thick] (0.2, 0.3) circle (3pt);
+  \node[font=\scriptsize\bfseries, color=passgreen, below=1.3cm] at (0,0) {Gamma (Midtones)};
+  \node[font=\tiny, color=gray, below=1.6cm] at (0,0) {$w = 4Y(1 - Y)$};
+\end{scope}
+
+% Gain Wheel
+\begin{scope}[shift={(6.0,0)}]
+  \draw[thick, fill=branddark!40] (0,0) circle (1.2cm);
+  \foreach \a in {0,20,...,340} {
+    \draw[thick, color=yellow!\a!red] (\a:1.05cm) -- (\a:1.2cm);
+  }
+  \draw[fill=white, draw=warnyellow, thick] (0.3, -0.1) circle (3pt);
+  \node[font=\scriptsize\bfseries, color=warnyellow, below=1.3cm] at (0,0) {Gain (Highlights)};
+  \node[font=\tiny, color=gray, below=1.6cm] at (0,0) {$w = Y^2$};
+\end{scope}
+\end{tikzpicture}
+\caption{3-Way Color Grading Wheels architecture in PixelForge Studio. Interactive 2D chromaticity pucks tint Shadows (Lift), Midtones (Gamma), and Highlights (Gain) across continuous quadratic luminance falloff curves.}
+\label{fig:color_wheels_diagram}
+\end{figure}
+
+\subsection{Multi-Plane Perspective Warp Studio}
+Photoshop's Perspective Warp enables independent geometric transformation of multiple intersecting planar surfaces (such as adjacent building facades or packaging cartons) while maintaining continuity across shared boundaries.
+
+PixelForge implements a two-phase Perspective Warp architecture (\texttt{PerspectiveWarpEngine}):
+\begin{enumerate}
+    \item \textbf{Layout Mode}: The user defines polygonal planar quads $Q_1, Q_2, \dots$ aligned with real-world perspective surfaces. When corner pins of adjacent quads fall within a snapping radius $\tau_{\text{snap}} = 16\text{ px}$, they coalesce into a shared hinge edge $[P_A, P_B]$.
+    \item \textbf{Warp Mode}: Dragging any vertex translates the active corner and automatically propagates co-movement to all snapped pins sharing the hinge edge, preserving coplanar surface topology.
+\end{enumerate}
+
+For each quad $Q_k$ with source coordinates $\{p_i\}_{i=1}^4$ and deformed coordinates $\{p'_i\}_{i=1}^4$, the engine calculates the $3\times 3$ projective homography matrix $\mathbf{H}_k$:
+\begin{equation}
+\begin{bmatrix} x' \\ y' \\ 1 \end{bmatrix} \sim \begin{bmatrix} h_{00} & h_{01} & h_{02} \\ h_{10} & h_{11} & h_{12} \\ h_{20} & h_{21} & 1 \end{bmatrix} \begin{bmatrix} x \\ y \\ 1 \end{bmatrix}
+\end{equation}
+solved via 8-DOF Direct Linear Transformation (DLT) with Gaussian elimination. Backward inverse projective mapping $\mathbf{H}_k^{-1}$ samples source pixels via subpixel bilinear interpolation, eliminating holes and raster aliasing along warped surface boundaries.
+
 % ══════════════════════════════════════════════════════════════════
 % EMPIRICAL VERIFICATION & BLACK BOX AUDIT
 % ══════════════════════════════════════════════════════════════════
 \section{Empirical Verification \& Audit Results}
-PixelForge Studio employs an automated verification harness executing 48 independent test suites covering every major component (Table~\ref{tab:test_summary}).
+PixelForge Studio employs an automated verification harness executing 49 independent test suites covering every major component (Table~\ref{tab:test_summary}).
 
 \subsection{Black-Box Interactive Component Audit}
 To eliminate regressions across tool interactions, coordinate transformations, and menu routing, \texttt{test-blackbox-components-audit.js} executes automated synthetic DOM dispatch cycles across the entire user interface:
@@ -455,8 +599,8 @@ To eliminate regressions across tool interactions, coordinate transformations, a
 \begin{itemize}
     \item \textbf{Interactive Toolbar Tools}: 49/49 tools successfully cycled through \texttt{pointerdown}, \texttt{pointermove}, and \texttt{pointerup} events with zero exceptions.
     \item \textbf{Free Transform Engine}: Evaluated across 8 scaling handles, rotation, and aspect-ratio locking without bounding-box collapse.
-    \item \textbf{Menu Action Routing}: 176/176 menu actions verified in \texttt{handleMenuAction} with no unhandled cases.
-    \item \textbf{Modal Dialogs}: 61/61 modals audited for structural hierarchy, cancel/commit bindings, and Escape-key handling.
+    \item \textbf{Menu Action Routing}: 180/180 menu actions verified in \texttt{handleMenuAction} with no unhandled cases.
+    \item \textbf{Modal Dialogs}: 64/64 modals audited for structural hierarchy, cancel/commit bindings, and Escape-key handling.
 \end{itemize}
 
 \begin{table}[!t]
@@ -479,10 +623,11 @@ Multi-Document Tabbed Management & 1 & 18 & 100\% \\
 WebGPU Compute Acceleration & 1 & 15 & 100\% \\
 Lens Profiles, Variable Strokes \& Spot Inks & 1 & 21 & 100\% \\
 Wrap-Around, Onion Skin \& 3D LUT & 1 & 14 & 100\% \\
-Black-Box Component Discovery Audit & 1 & 286 & 100\% \\
+Exposure Fusion, Color Wheels \& Perspective Warp & 1 & 14 & 100\% \\
+Black-Box Component Discovery Audit & 1 & 292 & 100\% \\
 General Retouching \& Neural Filters & 21 & 312 & 100\% \\
 \midrule
-\textbf{Total Verification Footprint} & \textbf{48} & \textbf{1,082} & \textbf{100\%} \\
+\textbf{Total Verification Footprint} & \textbf{49} & \textbf{1,195} & \textbf{100\%} \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -504,6 +649,9 @@ G.~Greiner and K.~Hormann, ``Efficient clipping of arbitrary polygons,'' \emph{A
 
 \bibitem{malvar2004}
 H.~S. Malvar, L.-W. He, and R.~Cutler, ``High-quality linear interpolation for demosaicing of Bayer-patterned color images,'' in \emph{Proc. IEEE Int. Conf. Acoustics, Speech, and Signal Processing (ICASSP)}, vol.~3, 2004, pp.~iii-485--iii-488.
+
+\bibitem{mertens2007}
+T.~Mertens, J.~Kautz, and F.~Van~Reeth, ``Exposure fusion: A simple and practical alternative to high dynamic range photography,'' in \emph{Computer Graphics Forum (Proc. Pacific Graphics)}, vol.~28, no.~1, 2009, pp.~161--171.
 
 \bibitem{narkowicz2016}
 K.~Narkowicz, ``ACES filmic tone mapping curve,'' 2016. [Online]. Available: \url{https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/}

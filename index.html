@@ -53,6 +53,7 @@
           <div class="menu-row" data-action="export-cmyk-plates"><span class="label">Export Prepress Separation Plates (C, M, Y, K)...</span></div>
           <div class="menu-row" data-action="export-pdf"><span class="label">Export as Multi-Page PDF...</span></div>
           <div class="menu-row" data-action="batch-process"><span class="label">Batch Image Processor...</span></div>
+          <div class="menu-row" data-action="automate-exposure-fusion"><span class="label">Exposure Fusion (HDR Merge)...</span></div>
           <div class="menu-separator"></div>
           <div class="menu-row" data-action="open-hdr-file"><span class="label">Open Radiance HDR (.hdr)...</span></div>
           <div class="menu-row" data-action="export-hdr-file"><span class="label">Export as Radiance 32-bit HDR (.hdr)...</span></div>
@@ -84,6 +85,7 @@
           <div class="menu-separator"></div>
           <div class="menu-row" data-action="free-transform"><span class="label">Free Transform</span><span class="shortcut">Ctrl+T</span></div>
           <div class="menu-row" data-action="transform-perspective"><span class="label">Perspective Transform...</span></div>
+          <div class="menu-row" data-action="perspective-warp"><span class="label">Perspective Warp (Multi-Plane)...</span></div>
           <div class="menu-row" data-action="transform-warp"><span class="label">Warp Transform (Bézier Mesh)...</span><span class="shortcut">Ctrl+Shift+W</span></div>
           <div class="menu-row" data-action="transform-split-warp"><span class="label">Split Warp (Subdivided Mesh)...</span></div>
           <div class="menu-row" data-action="transform-puppet-warp"><span class="label">Puppet Warp...</span></div>
@@ -98,6 +100,7 @@
           <div class="menu-row" data-action="content-aware-fill"><span class="label">Content-Aware Fill...</span><span class="shortcut">Shift+F5</span></div>
           <div class="menu-row" data-action="generative-fill"><span class="label">✨ Generative Fill & Inpainting (AI)...</span><span class="shortcut">Ctrl+Alt+G</span></div>
           <div class="menu-row" data-action="auto-blend-focus-stack"><span class="label">Auto-Blend Layers (Focus Stacking)...</span></div>
+          <div class="menu-row" data-action="auto-blend-exposure-fusion"><span class="label">Auto-Blend Layers (Exposure Fusion HDR)...</span></div>
           <div class="menu-separator"></div>
           <div class="menu-row" data-action="select-all"><span class="label">Select All</span><span class="shortcut">Ctrl+A</span></div>
           <div class="menu-row" data-action="deselect"><span class="label">Deselect</span><span class="shortcut">Ctrl+D</span></div>
@@ -119,6 +122,7 @@
         <div class="dropdown-menu">
           <div class="menu-row" data-action="filter-curves"><span class="label">Curves & Levels...</span><span class="shortcut">Ctrl+M</span></div>
           <div class="menu-row" data-action="filter-color-balance"><span class="label">Color Balance...</span><span class="shortcut">Ctrl+B</span></div>
+          <div class="menu-row" data-action="color-wheels-grading"><span class="label">3-Way Color Wheels (Color Grading)...</span></div>
           <div class="menu-row" data-action="filter-brightness-contrast"><span class="label">Brightness / Contrast...</span></div>
           <div class="menu-row" data-action="filter-hue-saturation"><span class="label">Hue / Saturation...</span></div>
           <div class="menu-row" data-action="filter-vibrance"><span class="label">Vibrance & Saturation...</span></div>
@@ -4995,6 +4999,148 @@ console.log("Active layer:", active ? active.name : "None");
     </div>
   </div>
 
+  <!-- Modal: Auto-Blend Exposure Fusion HDR -->
+  <div class="modal-backdrop hidden" id="modal-exposure-fusion">
+    <div class="modal-dialog" style="max-width:480px;">
+      <div class="modal-header">
+        <h3>Auto-Blend Layers (Exposure Fusion HDR)</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
+        <p style="font-size:12px; color:var(--text-muted);">
+          Seamlessly blends bracketed exposures using Mertens multi-scale Laplacian pyramid fusion without tone-mapping artifacts or shadow noise.
+        </p>
+        <div class="form-row">
+          <label>Contrast Weight (\(w_c\)):</label>
+          <input type="range" id="fusion-contrast-weight" min="0" max="2.0" step="0.1" value="1.0">
+          <span id="val-fusion-contrast-weight" style="font-family:monospace; min-width:32px;">1.0</span>
+        </div>
+        <div class="form-row">
+          <label>Saturation Weight (\(w_s\)):</label>
+          <input type="range" id="fusion-saturation-weight" min="0" max="2.0" step="0.1" value="1.0">
+          <span id="val-fusion-saturation-weight" style="font-family:monospace; min-width:32px;">1.0</span>
+        </div>
+        <div class="form-row">
+          <label>Well-Exposedness Weight (\(w_e\)):</label>
+          <input type="range" id="fusion-exposed-weight" min="0" max="2.0" step="0.1" value="1.0">
+          <span id="val-fusion-exposed-weight" style="font-family:monospace; min-width:32px;">1.0</span>
+        </div>
+        <div class="form-row">
+          <label>Pyramid Octave Depth:</label>
+          <input type="range" id="fusion-pyramid-levels" min="2" max="6" step="1" value="4">
+          <span id="val-fusion-pyramid-levels" style="font-family:monospace; min-width:32px;">4</span>
+        </div>
+        <div class="form-row checkbox-row">
+          <label><input type="checkbox" id="fusion-generate-masks"> Generate Individual Exposure Weight Masks</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost modal-cancel-btn">Cancel</button>
+        <button class="btn-primary" id="btn-confirm-exposure-fusion">Blend Exposure Fusion</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: 3-Way Color Grading Wheels (Lift, Gamma, Gain) -->
+  <div class="modal-backdrop hidden" id="modal-color-wheels">
+    <div class="modal-dialog" style="max-width:760px;">
+      <div class="modal-header">
+        <h3>3-Way Color Wheels (Color Grading Studio)</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:16px;">
+        <p style="font-size:12px; color:var(--text-muted);">
+          Cinematic 3-way color grading: Drag pucks on color wheels to tint Shadows (Lift), Midtones (Gamma), and Highlights (Gain).
+        </p>
+        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; text-align:center;">
+          <!-- Lift / Shadows -->
+          <div style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:8px; padding:12px; display:flex; flex-direction:column; align-items:center; gap:8px;">
+            <div style="font-weight:600; font-size:13px; color:#60a5fa;">Lift (Shadows)</div>
+            <canvas id="wheel-canvas-lift" width="160" height="160" style="cursor:crosshair; border-radius:50%;"></canvas>
+            <div class="form-row" style="width:100%; font-size:11px;">
+              <label>Luma:</label>
+              <input type="range" id="wheel-lift-luma" min="-100" max="100" value="0" style="flex:1;">
+              <span id="val-wheel-lift-luma" style="font-family:monospace; min-width:28px;">0</span>
+            </div>
+            <button class="btn-xs-ghost" id="btn-reset-wheel-lift">Reset Lift</button>
+          </div>
+          <!-- Gamma / Midtones -->
+          <div style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:8px; padding:12px; display:flex; flex-direction:column; align-items:center; gap:8px;">
+            <div style="font-weight:600; font-size:13px; color:#34d399;">Gamma (Midtones)</div>
+            <canvas id="wheel-canvas-gamma" width="160" height="160" style="cursor:crosshair; border-radius:50%;"></canvas>
+            <div class="form-row" style="width:100%; font-size:11px;">
+              <label>Luma:</label>
+              <input type="range" id="wheel-gamma-luma" min="-100" max="100" value="0" style="flex:1;">
+              <span id="val-wheel-gamma-luma" style="font-family:monospace; min-width:28px;">0</span>
+            </div>
+            <button class="btn-xs-ghost" id="btn-reset-wheel-gamma">Reset Gamma</button>
+          </div>
+          <!-- Gain / Highlights -->
+          <div style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:8px; padding:12px; display:flex; flex-direction:column; align-items:center; gap:8px;">
+            <div style="font-weight:600; font-size:13px; color:#f59e0b;">Gain (Highlights)</div>
+            <canvas id="wheel-canvas-gain" width="160" height="160" style="cursor:crosshair; border-radius:50%;"></canvas>
+            <div class="form-row" style="width:100%; font-size:11px;">
+              <label>Luma:</label>
+              <input type="range" id="wheel-gain-luma" min="-100" max="100" value="0" style="flex:1;">
+              <span id="val-wheel-gain-luma" style="font-family:monospace; min-width:28px;">0</span>
+            </div>
+            <button class="btn-xs-ghost" id="btn-reset-wheel-gain">Reset Gain</button>
+          </div>
+        </div>
+        <!-- Master Controls -->
+        <div style="display:flex; gap:16px; align-items:center; padding:8px 12px; background:var(--bg-surface); border-radius:6px;">
+          <div class="form-row" style="flex:1; margin:0;">
+            <label style="font-size:12px;">Master Saturation:</label>
+            <input type="range" id="wheel-master-saturation" min="0" max="200" value="100" style="flex:1;">
+            <span id="val-wheel-master-saturation" style="font-family:monospace; min-width:32px;">100%</span>
+          </div>
+          <div class="form-row" style="flex:1; margin:0;">
+            <label style="font-size:12px;">Master Contrast:</label>
+            <input type="range" id="wheel-master-contrast" min="-50" max="50" value="0" style="flex:1;">
+            <span id="val-wheel-master-contrast" style="font-family:monospace; min-width:32px;">0</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" id="btn-reset-all-wheels">Reset All Wheels</button>
+        <button class="btn-ghost modal-cancel-btn">Cancel</button>
+        <button class="btn-primary" id="btn-apply-color-wheels">Apply Color Grading</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Perspective Warp (Photoshop Parity) -->
+  <div class="modal-backdrop hidden" id="modal-perspective-warp">
+    <div class="modal-dialog" style="max-width:820px;">
+      <div class="modal-header">
+        <h3>Perspective Warp Studio</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-surface); padding:8px 14px; border-radius:6px;">
+          <div style="display:flex; gap:8px;">
+            <button id="btn-pwarp-layout-mode" class="btn-xs-accent" style="font-weight:600;">1. Layout Mode</button>
+            <button id="btn-pwarp-warp-mode" class="btn-xs-ghost" style="font-weight:600;">2. Warp Mode</button>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button id="btn-pwarp-add-quad" class="btn-xs-ghost">+ Add Planar Quad</button>
+            <button id="btn-pwarp-reset" class="btn-xs-ghost">Reset Quads</button>
+          </div>
+        </div>
+        <p id="pwarp-instruction-text" style="font-size:12px; color:var(--text-muted); margin:0;">
+          <strong>Layout Mode:</strong> Define planar quadrilateral grids over object surfaces. Adjacent pins snap together automatically to form shared hinge edges.
+        </p>
+        <div style="position:relative; width:100%; height:400px; background:#11141a; border:1px solid var(--border-color); border-radius:8px; overflow:hidden; display:flex; align-items:center; justify-content:center;">
+          <canvas id="perspective-warp-canvas" width="760" height="380" style="cursor:crosshair;"></canvas>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost modal-cancel-btn">Cancel</button>
+        <button class="btn-primary" id="btn-apply-perspective-warp">Commit Perspective Warp</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Hidden File Inputs -->
   <input type="file" id="browser-file-input" accept="image/*,.psd" style="display:none;">
   <input type="file" id="browser-psd-input" accept=".psd,.psb,image/vnd.adobe.photoshop" style="display:none;">
@@ -5079,6 +5225,9 @@ console.log("Active layer:", active ? active.name : "None");
   <script src="js/vector-stroke-profiler.js"></script>
   <script src="js/spot-color-channels.js"></script>
   <script src="js/wrap-around.js"></script>
+  <script src="js/exposure-fusion.js"></script>
+  <script src="js/color-wheels.js"></script>
+  <script src="js/perspective-warp.js"></script>
   <script src="js/tools.js"></script>
   <script src="js/app.js"></script>
 </body>
