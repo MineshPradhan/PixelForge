@@ -153,12 +153,11 @@ class LutEngine {
      * @param {ImageData} imageData 
      * @param {Object} lut 
      * @param {number} intensity [0.0 - 1.0]
+     * @param {string} interpolation 'tetrahedral' | 'trilinear'
      * @returns {ImageData}
      */
-    static applyLut(imageData, lut, intensity = 1.0) {
+    static applyLut(imageData, lut, intensity = 1.0, interpolation = 'tetrahedral') {
         if (!lut || !lut.data) return imageData;
-        const d = imageData.data;
-        const len = d.length;
         const amount = Math.max(0, Math.min(1, intensity));
         if (amount === 0) return imageData;
 
@@ -166,6 +165,132 @@ class LutEngine {
             return LutEngine.apply1DLut(imageData, lut, amount);
         }
 
+        if (interpolation === 'tetrahedral') {
+            return LutEngine.applyTetrahedralLut(imageData, lut, amount);
+        } else {
+            return LutEngine.applyTrilinearLut(imageData, lut, amount);
+        }
+    }
+
+    /**
+     * Apply 3D LUT using High-Precision Tetrahedral Simplex Decomposition
+     * Partitions the unit cube into 6 tetrahedra along the main diagonal,
+     * interpolating across 4 lattice vertices to eliminate diagonal banding and saddle distortions.
+     * @param {ImageData} imageData 
+     * @param {Object} lut 
+     * @param {number} amount [0.0 - 1.0]
+     * @returns {ImageData}
+     */
+    static applyTetrahedralLut(imageData, lut, amount) {
+        const d = imageData.data;
+        const len = d.length;
+        const size = lut.size;
+        const data = lut.data;
+        const dMin = lut.domainMin;
+        const dMax = lut.domainMax;
+        const spanR = dMax[0] - dMin[0] || 1.0;
+        const spanG = dMax[1] - dMin[1] || 1.0;
+        const spanB = dMax[2] - dMin[2] || 1.0;
+
+        const maxIdx = size - 1;
+        const sizeSq = size * size;
+
+        for (let i = 0; i < len; i += 4) {
+            const rNorm = ((d[i] / 255.0) - dMin[0]) / spanR;
+            const gNorm = ((d[i + 1] / 255.0) - dMin[1]) / spanG;
+            const bNorm = ((d[i + 2] / 255.0) - dMin[2]) / spanB;
+
+            const rGrid = Math.max(0, Math.min(maxIdx, rNorm * maxIdx));
+            const gGrid = Math.max(0, Math.min(maxIdx, gNorm * maxIdx));
+            const bGrid = Math.max(0, Math.min(maxIdx, bNorm * maxIdx));
+
+            const r0 = Math.floor(rGrid);
+            const r1 = Math.min(maxIdx, r0 + 1);
+            const g0 = Math.floor(gGrid);
+            const g1 = Math.min(maxIdx, g0 + 1);
+            const b0 = Math.floor(bGrid);
+            const b1 = Math.min(maxIdx, b0 + 1);
+
+            const dr = rGrid - r0;
+            const dg = gGrid - g0;
+            const db = bGrid - b0;
+
+            const p000 = (r0 + g0 * size + b0 * sizeSq) * 3;
+            const p100 = (r1 + g0 * size + b0 * sizeSq) * 3;
+            const p010 = (r0 + g1 * size + b0 * sizeSq) * 3;
+            const p110 = (r1 + g1 * size + b0 * sizeSq) * 3;
+            const p001 = (r0 + g0 * size + b1 * sizeSq) * 3;
+            const p101 = (r1 + g0 * size + b1 * sizeSq) * 3;
+            const p011 = (r0 + g1 * size + b1 * sizeSq) * 3;
+            const p111 = (r1 + g1 * size + b1 * sizeSq) * 3;
+
+            let i0 = p000, i1, i2, i3 = p111;
+            let w0, w1, w2, w3;
+
+            if (dr >= dg) {
+                if (dg >= db) {
+                    // dr >= dg >= db
+                    i1 = p100; i2 = p110;
+                    w0 = 1.0 - dr;
+                    w1 = dr - dg;
+                    w2 = dg - db;
+                    w3 = db;
+                } else if (dr >= db) {
+                    // dr >= db > dg
+                    i1 = p100; i2 = p101;
+                    w0 = 1.0 - dr;
+                    w1 = dr - db;
+                    w2 = db - dg;
+                    w3 = dg;
+                } else {
+                    // db > dr >= dg
+                    i1 = p001; i2 = p101;
+                    w0 = 1.0 - db;
+                    w1 = db - dr;
+                    w2 = dr - dg;
+                    w3 = dg;
+                }
+            } else {
+                if (db >= dg) {
+                    // db >= dg > dr
+                    i1 = p001; i2 = p011;
+                    w0 = 1.0 - db;
+                    w1 = db - dg;
+                    w2 = dg - dr;
+                    w3 = dr;
+                } else if (db >= dr) {
+                    // dg > db >= dr
+                    i1 = p010; i2 = p011;
+                    w0 = 1.0 - dg;
+                    w1 = dg - db;
+                    w2 = db - dr;
+                    w3 = dr;
+                } else {
+                    // dg > dr > db
+                    i1 = p010; i2 = p110;
+                    w0 = 1.0 - dg;
+                    w1 = dg - dr;
+                    w2 = dr - db;
+                    w3 = db;
+                }
+            }
+
+            for (let c = 0; c < 3; c++) {
+                const lutVal = (data[i0 + c] * w0 + data[i1 + c] * w1 + data[i2 + c] * w2 + data[i3 + c] * w3) * 255.0;
+                const origVal = d[i + c];
+                d[i + c] = Math.round(origVal + (lutVal - origVal) * amount);
+            }
+        }
+
+        return imageData;
+    }
+
+    /**
+     * Apply 3D LUT using Trilinear Interpolation
+     */
+    static applyTrilinearLut(imageData, lut, amount) {
+        const d = imageData.data;
+        const len = d.length;
         const size = lut.size;
         const data = lut.data;
         const dMin = lut.domainMin;

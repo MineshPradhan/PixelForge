@@ -26,10 +26,13 @@
 
 ## 🏆 Parity Matrix: PixelForge vs. Industry Titans
 
-| Feature Category | PixelForge Studio | Adobe Photoshop CC | Affinity Photo 2 | GIMP 2.10 / 3.0 |
+| Feature Category | PixelForge Studio | Adobe Photoshop CC | Affinity Photo 2 | Krita 5.x / GIMP |
 | :--- | :---: | :---: | :---: | :---: |
 | **Photoshop PSD & PSB Roundtrip** | ✅ Full (PSD & PSB up to 300k px) | ✅ Native | ⚠️ PSD only (Partial PSB) | ⚠️ PSD only (Partial) |
 | **Adobe Preset Importers (.abr, .ase, .aco)** | ✅ Native Pure-JS Binary Parsers & Exporter | ✅ Native | ⚠️ Partial (.abr only) | ⚠️ Brushes only (GIMP .gbr) |
+| **Infinite Seamless Canvas Wrap-Around (`Shift+W`)** | ✅ 9-quadrant toroidal tiling & brush wrap | ⚠️ Pattern Preview only | ❌ Manual offset | ✅ Native (`W` Wrap-Around) |
+| **Animation Timeline & Onion Skinning** | ✅ Multi-frame red/green temporal overlays + GIF | ✅ Timeline + Onion Skin | ❌ No animation timeline | ✅ Animation Timeline |
+| **3D LUT Tetrahedral Simplex Mode** | ✅ 4-simplex subdivision (Zero Banding) | ✅ 3D LUT Color Lookup | ✅ 3D LUT Adjustment | ⚠️ Basic trilinear only |
 | **Vector Boolean Shape Operations (Pathfinder)** | ✅ Union, Subtract, Intersect, Exclude | ✅ Native Shape Modes | ✅ Geometry Operations | ⚠️ Path tool subtract only |
 | **Multi-Document Tabbed Workspace** | ✅ Concurrent tabs + Cross-Doc Layer Clone | ✅ Native Tabs | ✅ Native Tabs | ⚠️ Image tabs |
 | **Camera RAW Container (DNG/CR2/NEF/ARW)** | ✅ Native Pure-JS Parser & CFA Demosaic | ✅ Adobe Camera Raw | ✅ Serif RAW Engine | ⚠️ Requires Darktable / UFRaw |
@@ -133,6 +136,24 @@
   - Dedicated 8-bit density raster buffers ($0-255$, where $255 = 100\%$ ink coverage) independent of composite RGB/CMYK channels.
   - Color preview tint mapping with adjustable ink solidity and opacity (e.g. Pantone 185 C, Reflex Blue C, Metallic Gold 871 C, Silver 877 C, White Ink Underbase, Clear Gloss Varnish).
   - Prepress plate isolation: generates isolated high-contrast film separation negatives/positives for specialty physical printing plates.
+
+### 🔄 Infinite Seamless Canvas Wrap-Around View & Brush Wrap (`Shift+W`)
+- Krita / Photoshop pattern painting parity via `WrapAroundEngine`:
+  - Infinite 9-quadrant toroidal canvas viewport projection rendering seamless repeating tiles around the active canvas.
+  - Seamless edge-wrapping brush engine: dabs crossing canvas edges wrap toroidally $(x \pmod W, y \pmod H)$ to opposite borders and all 4 corners simultaneously.
+  - Bidirectional coordinate mapping allows painting or selecting directly across boundary tiles without seam artifacts.
+
+### 🎞️ Animation Timeline Onion Skinning Engine
+- Temporal frame animation overlay engine integrated with `TimelineManager`:
+  - Non-destructive semi-transparent onion skin overlays showing previous frame(s) tinted red and next frame(s) tinted green directly in the active canvas viewport.
+  - Configurable past/future frame spans (1–5 frames) and opacity decay inversely proportional to temporal frame distance.
+  - 100% pure vanilla JS NeuQuant 256-color palette quantized animated `.gif` export.
+
+### 💎 3D LUT Tetrahedral Simplex Decomposition Mode (`.cube`)
+- Hollywood cinema-grade color lookup grading via 4-simplex subdivision:
+  - Decomposes each unit color cube into 6 tetrahedra along the diagonal axis, sampling only 4 lattice vertices instead of 8.
+  - Eliminates diagonal chromatic interpolation artifacts, posterization, and shadow banding inherent to conventional trilinear interpolation.
+  - Seamlessly applies to both raster layers and non-destructive Color Lookup adjustment layers.
 
 ---
 
@@ -292,7 +313,7 @@ PixelForge Studio implements clean, zero-dependency binary parsers and serialize
 | **`Ctrl + Shift + E`** | Merge All Visible Layers |
 | **`Ctrl + Shift + A`** | Open Camera RAW Lab |
 | **`Ctrl + Shift + X`** | Open Liquify Filter Mesh |
-| **`Ctrl + Alt + Shift + W`** | Export As (Pro Export Suite) |
+| **`Shift + W`** | Toggle Infinite Seamless Wrap-Around Mode (Krita Parity) |
 | **`Q`** | Toggle Quick Mask Mode |
 | **`X`** | Swap Foreground and Background Colors |
 | **`D`** | Reset Colors to Default Black & White |
@@ -346,15 +367,16 @@ node server.js
 
 ## 🧪 Test Suites & Validation
 
-PixelForge Studio maintains **100% test coverage** across all modules with automated regression and black-box component discovery suites:
+PixelForge Studio maintains **100% test coverage** across all modules with automated regression and black-box component discovery suites (48 test suites total):
 
 ```bash
 npm test
 ```
 
 ### Verified Test Suites:
+- `test-frontiers-wrap-onion-lut.js`: Seamless toroidal wrap-around view/brush, animation onion skinning, and 3D LUT tetrahedral simplex interpolation (**Passed**).
 - `test-frontiers-gap-closing.js`: Lens profile database, vector variable-width stroke ribbons, spot color prepress channels (**Passed**).
-- `test-blackbox-components-audit.js`: Audits all 175 menu actions, 49 tools, and 61 modals (**0 errors**).
+- `test-blackbox-components-audit.js`: Audits all 176 menu actions, 49 tools, and 61 modals (**0 errors**).
 - `test-raw-container.js`: DNG, CR2, NEF, ARW binary IFD reading, CFA demosaic roundtrip (**Passed**).
 - `test-cmyk-export.js`: Native 4-channel CMYK TIFF & prepress separation plates (**Passed**).
 - `test-exr-codec.js`: OpenEXR 32-bit linear half-float encoder/decoder & ACES tonemap (**Passed**).

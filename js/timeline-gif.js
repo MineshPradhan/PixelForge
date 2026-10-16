@@ -56,6 +56,14 @@ class TimelineManager {
         this.loopMode = 'forever'; // 'once', '3times', 'forever'
         this.playbackTimer = null;
         this.loopCounter = 0;
+        this.onionSkinEnabled = false;
+        this.onionSkinPrevFrames = 1;
+        this.onionSkinNextFrames = 1;
+        this.onionSkinOpacity = 0.35;
+        this.onionSkinPrevColor = '#ef4444'; // Red for past frames
+        this.onionSkinNextColor = '#22c55e'; // Green for future frames
+        this._onionCanvas = null;
+        this._tintCanvas = null;
     }
 
     setApp(app) {
@@ -218,6 +226,120 @@ class TimelineManager {
             this.selectFrame(nextIndex);
             this.scheduleNextFrame();
         }, delayMs);
+    }
+
+    /**
+     * Toggle Onion Skinning on or off
+     * @param {boolean|null} enable 
+     * @returns {boolean}
+     */
+    toggleOnionSkin(enable = null) {
+        this.onionSkinEnabled = enable !== null ? !!enable : !this.onionSkinEnabled;
+        if (this.app && this.app.renderGuidesAndOverlays) {
+            this.app.renderGuidesAndOverlays();
+        }
+        return this.onionSkinEnabled;
+    }
+
+    /**
+     * Set Onion Skinning preferences (frames before/after, opacity)
+     */
+    setOnionSkinSettings({ prevFrames = 1, nextFrames = 1, opacity = 0.35 } = {}) {
+        this.onionSkinPrevFrames = Math.max(1, Math.min(5, prevFrames));
+        this.onionSkinNextFrames = Math.max(1, Math.min(5, nextFrames));
+        this.onionSkinOpacity = Math.max(0.05, Math.min(0.9, opacity));
+        if (this.app && this.app.renderGuidesAndOverlays) {
+            this.app.renderGuidesAndOverlays();
+        }
+    }
+
+    /**
+     * Non-destructively render semi-transparent onion skin overlays onto overlay canvas
+     * Past frames are tinted red, future frames tinted green, fading with distance.
+     * @param {CanvasRenderingContext2D} targetCtx 
+     * @param {number} width 
+     * @param {number} height 
+     */
+    renderOnionSkin(targetCtx, width, height) {
+        if (!this.onionSkinEnabled || this.isPlaying || this.frames.length <= 1 || !this.app || !this.app.layerManager) {
+            return;
+        }
+
+        const layers = this.app.layerManager.layers;
+        if (!layers || layers.length === 0) return;
+
+        if (!this._onionCanvas) {
+            this._onionCanvas = (typeof Utils !== 'undefined' && Utils.createCanvas)
+                ? Utils.createCanvas(width, height)
+                : (typeof document !== 'undefined' && document.createElement ? document.createElement('canvas') : null);
+        }
+        if (!this._tintCanvas) {
+            this._tintCanvas = (typeof Utils !== 'undefined' && Utils.createCanvas)
+                ? Utils.createCanvas(width, height)
+                : (typeof document !== 'undefined' && document.createElement ? document.createElement('canvas') : null);
+        }
+        if (!this._onionCanvas || !this._tintCanvas) return;
+
+        this._onionCanvas.width = width;
+        this._onionCanvas.height = height;
+        this._tintCanvas.width = width;
+        this._tintCanvas.height = height;
+
+        const onionCtx = this._onionCanvas.getContext('2d');
+        const tintCtx = this._tintCanvas.getContext('2d');
+        if (!onionCtx || !tintCtx) return;
+
+        const curIdx = this.currentFrameIndex;
+        const startPrev = Math.max(0, curIdx - this.onionSkinPrevFrames);
+        const endNext = Math.min(this.frames.length - 1, curIdx + this.onionSkinNextFrames);
+
+        const renderFrameIndices = [];
+        // Past frames (red)
+        for (let i = startPrev; i < curIdx; i++) {
+            renderFrameIndices.push({ idx: i, isPast: true, dist: curIdx - i });
+        }
+        // Future frames (green)
+        for (let i = curIdx + 1; i <= endNext; i++) {
+            renderFrameIndices.push({ idx: i, isPast: false, dist: i - curIdx });
+        }
+
+        renderFrameIndices.forEach(({ idx, isPast, dist }) => {
+            const frame = this.frames[idx];
+            if (!frame) return;
+
+            onionCtx.clearRect(0, 0, width, height);
+
+            for (let l = 0; l < layers.length; l++) {
+                const layer = layers[l];
+                if (layer.isGroup || layer.type === 'adjustment') continue;
+                const state = frame.layerStates ? frame.layerStates.get(layer.id) : null;
+                const visible = state ? state.visible : layer.visible;
+                const opacity = state ? state.opacity : layer.opacity;
+
+                if (visible && opacity > 0 && layer.canvas) {
+                    onionCtx.save();
+                    onionCtx.globalAlpha = opacity / 100;
+                    onionCtx.drawImage(layer.canvas, 0, 0);
+                    onionCtx.restore();
+                }
+            }
+
+            // Tint the rendered frame
+            tintCtx.clearRect(0, 0, width, height);
+            tintCtx.drawImage(this._onionCanvas, 0, 0);
+            tintCtx.save();
+            tintCtx.globalCompositeOperation = 'source-in';
+            tintCtx.fillStyle = isPast ? this.onionSkinPrevColor : this.onionSkinNextColor;
+            tintCtx.fillRect(0, 0, width, height);
+            tintCtx.restore();
+
+            // Draw tinted frame onto targetCtx with distance falloff
+            targetCtx.save();
+            const alpha = (this.onionSkinOpacity / dist);
+            targetCtx.globalAlpha = Math.max(0.05, Math.min(1.0, alpha));
+            targetCtx.drawImage(this._tintCanvas, 0, 0);
+            targetCtx.restore();
+        });
     }
 }
 

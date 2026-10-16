@@ -275,6 +275,9 @@ class PixelForgeApp {
       this.multiDoc = new MultiDocumentManager(this);
       this.multiDoc.init();
     }
+    if (typeof WrapAroundEngine !== 'undefined') {
+      this.wrapAroundEngine = new WrapAroundEngine(this);
+    }
     this.bindAdobePresetImporters();
     this.bindPathfinderControls();
     this.bindRulerGuideInteractions();
@@ -445,6 +448,9 @@ class PixelForgeApp {
     if (this.contextualTaskBar) {
       this.contextualTaskBar.update();
     }
+    if (this.wrapAroundEngine && this.wrapAroundEngine.enabled) {
+      this.wrapAroundEngine.updateTiles();
+    }
   }
 
   updateProofUI() {
@@ -579,6 +585,13 @@ class PixelForgeApp {
       wrapper.style.gridTemplateColumns = '0px 1fr';
       wrapper.style.gridTemplateRows = '0px 1fr';
     }
+  }
+
+  toggleWrapAround() {
+    if (!this.wrapAroundEngine) {
+      this.wrapAroundEngine = new WrapAroundEngine(this);
+    }
+    return this.wrapAroundEngine.toggleWrapAround();
   }
 
   zoomIn() {
@@ -2313,6 +2326,9 @@ class PixelForgeApp {
         break;
       case 'zoom-fit':
         this.zoomFit();
+        break;
+      case 'toggle-wrap-around':
+        this.toggleWrapAround();
         break;
       case 'toggle-rulers':
         this.toggleRulers();
@@ -5700,6 +5716,12 @@ class PixelForgeApp {
         return;
       }
 
+      if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'w') {
+        e.preventDefault();
+        this.toggleWrapAround();
+        return;
+      }
+
       if (e.key === 'Enter') {
         if (this.puppetWarpEngine && this.puppetWarpEngine.active) {
           e.preventDefault();
@@ -7959,6 +7981,9 @@ class PixelForgeApp {
     if (this.quickMaskEngine && this.quickMaskEngine.active) {
       this.quickMaskEngine.renderRubylithOverlay(this.overlayCtx, this.zoom, this.panX, this.panY);
     }
+    if (this.timelineManager && this.timelineManager.onionSkinEnabled) {
+      this.timelineManager.renderOnionSkin(this.overlayCtx, this.width, this.height);
+    }
   }
 
   bindRulerGuideInteractions() {
@@ -8083,6 +8108,7 @@ class PixelForgeApp {
     modal.classList.remove('hidden');
 
     const selectPreset = document.getElementById('select-lut-preset');
+    const selectInterp = document.getElementById('select-lut-interpolation');
     const customRow = document.getElementById('row-custom-lut-file');
     const inputCube = document.getElementById('input-custom-cube');
     const sliderInt = document.getElementById('slider-lut-intensity');
@@ -8126,6 +8152,7 @@ class PixelForgeApp {
       btnApply.onclick = () => {
         modal.classList.add('hidden');
         const presetName = selectPreset ? selectPreset.value : 'Teal & Orange';
+        const interpMode = selectInterp ? selectInterp.value : 'tetrahedral';
         const intensity = sliderInt ? (parseInt(sliderInt.value, 10) / 100) : 1.0;
         const asAdj = checkAdj ? checkAdj.checked : true;
 
@@ -8140,7 +8167,8 @@ class PixelForgeApp {
           this.layerManager.addAdjustmentLayer('colorLookup', {
             preset: presetName,
             lut: lutObj,
-            intensity: intensity
+            intensity: intensity,
+            interpolation: interpMode
           });
           this.renderComposite();
           this.pushHistoryState(`Adjustment Layer: Color Lookup (${presetName})`);
@@ -8148,7 +8176,7 @@ class PixelForgeApp {
           const active = this.layerManager.getActiveLayer();
           if (active && !active.isGroup) {
             const imgData = active.ctx.getImageData(0, 0, active.width, active.height);
-            LutEngine.applyLut(imgData, lutObj, intensity);
+            LutEngine.applyLut(imgData, lutObj, intensity, interpMode);
             active.ctx.putImageData(imgData, 0, 0);
             this.renderComposite();
             this.pushHistoryState(`Color Lookup: ${presetName}`);
@@ -8668,6 +8696,24 @@ class PixelForgeApp {
       };
     }
 
+    const btnOnionSkin = document.getElementById('btn-timeline-onion-skin');
+    if (btnOnionSkin) {
+      const updateOnionBtn = () => {
+        if (!this.timelineManager) return;
+        btnOnionSkin.classList.toggle('active', !!this.timelineManager.onionSkinEnabled);
+        btnOnionSkin.style.borderColor = this.timelineManager.onionSkinEnabled ? '#38bdf8' : '';
+        btnOnionSkin.style.background = this.timelineManager.onionSkinEnabled ? 'rgba(56,189,248,0.2)' : '';
+      };
+      updateOnionBtn();
+      btnOnionSkin.onclick = () => {
+        if (!this.timelineManager) return;
+        const state = this.timelineManager.toggleOnionSkin();
+        updateOnionBtn();
+        this.showToast(state ? 'Onion Skinning Active (Past: Red, Future: Green)' : 'Onion Skinning Disabled');
+        this.renderGuidesAndOverlays();
+      };
+    }
+
     if (selLoop) {
       selLoop.onchange = () => {
         if (this.timelineManager) this.timelineManager.loop = selLoop.value;
@@ -8748,6 +8794,7 @@ class PixelForgeApp {
       card.onclick = () => {
         this.timelineManager.selectFrame(idx);
         this.renderTimelineFramesStrip();
+        this.renderGuidesAndOverlays();
       };
 
       strip.appendChild(card);

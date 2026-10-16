@@ -235,6 +235,8 @@
           <div class="menu-row" data-action="zoom-100"><span class="label">100% Actual Size</span><span class="shortcut">Ctrl+1</span></div>
           <div class="menu-row" data-action="zoom-fit"><span class="label">Fit on Screen</span><span class="shortcut">Ctrl+0</span></div>
           <div class="menu-separator"></div>
+          <div class="menu-row" data-action="toggle-wrap-around"><span class="label">Wrap-Around Mode (Seamless Tiling)</span><span class="shortcut">Shift+W</span></div>
+          <div class="menu-separator"></div>
           <div class="menu-row" data-action="toggle-rulers"><span class="label">Show Rulers</span><span class="shortcut">Ctrl+R</span></div>
           <div class="menu-row" data-action="toggle-grid"><span class="label">Show Grid</span><span class="shortcut">Ctrl+'</span></div>
           <div class="menu-row" data-action="toggle-guides"><span class="label">Show Guides</span><span class="shortcut">Ctrl+;</span></div>
@@ -3932,6 +3934,13 @@
           <label>Intensity: <span id="val-lut-intensity">100</span>%</label>
           <input type="range" id="slider-lut-intensity" min="0" max="100" value="100">
         </div>
+        <div class="form-row">
+          <label>Interpolation Mode:</label>
+          <select id="select-lut-interpolation">
+            <option value="tetrahedral" selected>Tetrahedral (Pro Simplex - Zero Banding)</option>
+            <option value="trilinear">Trilinear</option>
+          </select>
+        </div>
         <div class="form-row" style="flex-direction:row; align-items:center; gap:8px;">
           <input type="checkbox" id="check-lut-adj-layer" checked>
           <label for="check-lut-adj-layer" style="margin:0; cursor:pointer;">Create as Non-Destructive Adjustment Layer</label>
@@ -4144,6 +4153,7 @@
           <button id="btn-timeline-play" class="btn-primary-sm">▶ Play</button>
           <button id="btn-timeline-add" class="btn-ghost-sm">+ New Frame</button>
           <button id="btn-timeline-del" class="btn-ghost-sm">Delete Frame</button>
+          <button id="btn-timeline-onion-skin" class="btn-ghost-sm" title="Toggle Onion Skinning (Past frames red, future frames green)"><span style="color:#ef4444; margin-right:2px;">●</span><span style="color:#22c55e; margin-right:4px;">●</span>Onion Skin</button>
           <div style="flex:1;"></div>
           <label style="font-size:11px; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
             Loop:
@@ -5068,6 +5078,7 @@ console.log("Active layer:", active ? active.name : "None");
   <script src="js/lens-profile-db.js"></script>
   <script src="js/vector-stroke-profiler.js"></script>
   <script src="js/spot-color-channels.js"></script>
+  <script src="js/wrap-around.js"></script>
   <script src="js/tools.js"></script>
   <script src="js/app.js"></script>
 </body>

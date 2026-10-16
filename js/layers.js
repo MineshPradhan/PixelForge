@@ -2380,7 +2380,7 @@ class LayerManager {
       case 'colorLookup':
         if (typeof LutEngine !== 'undefined') {
           const lut = p.lut || (LutEngine.generatePresetLut ? LutEngine.generatePresetLut(p.preset || 'Teal & Orange') : null);
-          filtered = LutEngine.applyLut(imgData, lut, p.intensity ?? 1.0);
+          filtered = LutEngine.applyLut(imgData, lut, p.intensity ?? 1.0, p.interpolation || 'tetrahedral');
         }
         break;
       case 'selectiveColor':

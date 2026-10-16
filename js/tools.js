@@ -1189,10 +1189,16 @@ class ToolManager {
     const scaleX = (this.app.width && rect.width) ? (this.app.width / rect.width) : 1;
     const scaleY = (this.app.height && rect.height) ? (this.app.height / rect.height) : 1;
 
-    return {
-      x: clientX * scaleX,
-      y: clientY * scaleY
-    };
+    let x = clientX * scaleX;
+    let y = clientY * scaleY;
+
+    if (this.app.wrapAroundEngine && this.app.wrapAroundEngine.enabled) {
+      const wrapped = this.app.wrapAroundEngine.wrapCoordinates(x, y, this.app.width, this.app.height);
+      x = wrapped.x;
+      y = wrapped.y;
+    }
+
+    return { x, y };
   }
 
   bindCanvasEvents() {
@@ -1732,6 +1738,9 @@ class ToolManager {
       case 'pencil':
       case 'eraser':
         this.app.pushHistoryState(this.currentTool.toUpperCase() + ' Stroke');
+        if (this.app.wrapAroundEngine && this.app.wrapAroundEngine.enabled) {
+          this.app.wrapAroundEngine.updateTiles();
+        }
         break;
 
       case 'adjustment-brush':
@@ -1977,103 +1986,112 @@ class ToolManager {
         dabAngle += (Math.random() - 0.5) * 2 * Math.PI * (this.brushAngleJitter / 100);
       }
 
-      if (this.currentTool === 'pencil') {
-        ctx.fillStyle = fg;
-        ctx.fillRect(Math.round(x - dabSize / 2), Math.round(y - dabSize / 2), dabSize, dabSize);
-        continue;
-      }
-
       const r = dabSize / 2;
-      const tip = this.brushTip || 'round';
+      const offsets = (this.app.wrapAroundEngine && this.app.wrapAroundEngine.enabled)
+        ? this.app.wrapAroundEngine.getWrappedOffsets(x, y, r, this.app.width, this.app.height)
+        : [{ dx: 0, dy: 0 }];
 
-      if (tip === 'chisel') {
-        // Calligraphy chisel tip (flat angle stamp)
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(dabAngle);
-        ctx.scale(1, 0.35);
-        ctx.fillStyle = fg;
-        ctx.beginPath();
-        ctx.arc(0, 0, r, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      } else if (tip === 'bristle') {
-        // Natural multi-bristle hair dab
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(dabAngle);
-        const bristleCount = 8;
-        const bRad = Math.max(1, r / 4);
-        ctx.fillStyle = fg;
-        for (let b = 0; b < bristleCount; b++) {
-          const bx = (b / (bristleCount - 1) - 0.5) * dabSize * 0.9;
-          const by = (Math.random() - 0.5) * bRad * 1.5;
+      offsets.forEach(({ dx, dy }) => {
+        const cx_pt = x + dx;
+        const cy_pt = y + dy;
+
+        if (this.currentTool === 'pencil') {
+          ctx.fillStyle = fg;
+          ctx.fillRect(Math.round(cx_pt - dabSize / 2), Math.round(cy_pt - dabSize / 2), dabSize, dabSize);
+          return;
+        }
+
+        const tip = this.brushTip || 'round';
+
+        if (tip === 'chisel') {
+          // Calligraphy chisel tip (flat angle stamp)
+          ctx.save();
+          ctx.translate(cx_pt, cy_pt);
+          ctx.rotate(dabAngle);
+          ctx.scale(1, 0.35);
+          ctx.fillStyle = fg;
           ctx.beginPath();
-          ctx.arc(bx, by, bRad, 0, Math.PI * 2);
+          ctx.arc(0, 0, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        } else if (tip === 'bristle') {
+          // Natural multi-bristle hair dab
+          ctx.save();
+          ctx.translate(cx_pt, cy_pt);
+          ctx.rotate(dabAngle);
+          const bristleCount = 8;
+          const bRad = Math.max(1, r / 4);
+          ctx.fillStyle = fg;
+          for (let b = 0; b < bristleCount; b++) {
+            const bx = (b / (bristleCount - 1) - 0.5) * dabSize * 0.9;
+            const by = (Math.random() - 0.5) * bRad * 1.5;
+            ctx.beginPath();
+            ctx.arc(bx, by, bRad, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        } else if (tip === 'splatter') {
+          // Splatter / grunge droplet tip
+          ctx.fillStyle = fg;
+          ctx.beginPath();
+          ctx.arc(cx_pt, cy_pt, r * 0.5, 0, Math.PI * 2);
+          ctx.fill();
+          const dropCount = 6;
+          for (let s = 0; s < dropCount; s++) {
+            const sDist = r * (0.6 + Math.random() * 1.2);
+            const sAngle = Math.random() * Math.PI * 2;
+            const sRad = Math.max(0.75, r * (0.1 + Math.random() * 0.2));
+            ctx.beginPath();
+            ctx.arc(cx_pt + Math.cos(sAngle) * sDist, cy_pt + Math.sin(sAngle) * sDist, sRad, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else if (tip === 'airbrush') {
+          // Ultra-soft airbrush with wide gaussian falloff
+          const grad = ctx.createRadialGradient(cx_pt, cy_pt, 0, cx_pt, cy_pt, r * 1.4);
+          if (this.currentTool === 'eraser') {
+            grad.addColorStop(0, 'rgba(0,0,0,0.8)');
+            grad.addColorStop(0.5, 'rgba(0,0,0,0.3)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+          } else {
+            grad.addColorStop(0, fg);
+            grad.addColorStop(0.5, fg.replace('rgb', 'rgba').replace(')', ', 0.35)'));
+            grad.addColorStop(1, fg.replace('rgb', 'rgba').replace(')', ', 0)'));
+          }
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(cx_pt, cy_pt, r * 1.4, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (tip === 'soft-round') {
+          // Smooth soft round brush
+          const grad = ctx.createRadialGradient(cx_pt, cy_pt, 0, cx_pt, cy_pt, r);
+          if (this.currentTool === 'eraser') {
+            grad.addColorStop(0, 'rgba(0,0,0,1)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+          } else {
+            grad.addColorStop(0, fg);
+            grad.addColorStop(1, fg.replace('rgb', 'rgba').replace(')', ', 0)'));
+          }
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(cx_pt, cy_pt, r, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          // Standard round brush with adjustable hardness
+          const innerR = r * (this.brushHardness / 100);
+          const grad = ctx.createRadialGradient(cx_pt, cy_pt, innerR, cx_pt, cy_pt, r);
+          if (this.currentTool === 'eraser') {
+            grad.addColorStop(0, 'rgba(0,0,0,1)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+          } else {
+            grad.addColorStop(0, fg);
+            grad.addColorStop(1, fg.replace('rgb', 'rgba').replace(')', ', 0)'));
+          }
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(cx_pt, cy_pt, r, 0, Math.PI * 2);
           ctx.fill();
         }
-        ctx.restore();
-      } else if (tip === 'splatter') {
-        // Splatter / grunge droplet tip
-        ctx.fillStyle = fg;
-        ctx.beginPath();
-        ctx.arc(x, y, r * 0.5, 0, Math.PI * 2);
-        ctx.fill();
-        const dropCount = 6;
-        for (let s = 0; s < dropCount; s++) {
-          const sDist = r * (0.6 + Math.random() * 1.2);
-          const sAngle = Math.random() * Math.PI * 2;
-          const sRad = Math.max(0.75, r * (0.1 + Math.random() * 0.2));
-          ctx.beginPath();
-          ctx.arc(x + Math.cos(sAngle) * sDist, y + Math.sin(sAngle) * sDist, sRad, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      } else if (tip === 'airbrush') {
-        // Ultra-soft airbrush with wide gaussian falloff
-        const grad = ctx.createRadialGradient(x, y, 0, x, y, r * 1.4);
-        if (this.currentTool === 'eraser') {
-          grad.addColorStop(0, 'rgba(0,0,0,0.8)');
-          grad.addColorStop(0.5, 'rgba(0,0,0,0.3)');
-          grad.addColorStop(1, 'rgba(0,0,0,0)');
-        } else {
-          grad.addColorStop(0, fg);
-          grad.addColorStop(0.5, fg.replace('rgb', 'rgba').replace(')', ', 0.35)'));
-          grad.addColorStop(1, fg.replace('rgb', 'rgba').replace(')', ', 0)'));
-        }
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(x, y, r * 1.4, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (tip === 'soft-round') {
-        // Smooth soft round brush
-        const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-        if (this.currentTool === 'eraser') {
-          grad.addColorStop(0, 'rgba(0,0,0,1)');
-          grad.addColorStop(1, 'rgba(0,0,0,0)');
-        } else {
-          grad.addColorStop(0, fg);
-          grad.addColorStop(1, fg.replace('rgb', 'rgba').replace(')', ', 0)'));
-        }
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI * 2);
-        ctx.fill();
-      } else {
-        // Standard round brush with adjustable hardness
-        const innerR = r * (this.brushHardness / 100);
-        const grad = ctx.createRadialGradient(x, y, innerR, x, y, r);
-        if (this.currentTool === 'eraser') {
-          grad.addColorStop(0, 'rgba(0,0,0,1)');
-          grad.addColorStop(1, 'rgba(0,0,0,0)');
-        } else {
-          grad.addColorStop(0, fg);
-          grad.addColorStop(1, fg.replace('rgb', 'rgba').replace(')', ', 0)'));
-        }
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      });
     }
 
     ctx.restore();
