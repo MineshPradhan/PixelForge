@@ -3,18 +3,17 @@
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{amsmath,amssymb,amsfonts}
-\usepackage{algorithmic}
 \usepackage{graphicx}
 \usepackage{textcomp}
 \usepackage{xcolor}
 \usepackage{booktabs}
+\usepackage{array}
 \usepackage{tabularx}
 \usepackage{multirow}
-\usepackage{hyperref}
+\usepackage{url}
 \usepackage{tikz}
-\usepackage{pgfplots}
-\pgfplotsset{compat=1.18}
-\usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, fit, backgrounds, patterns}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, fit, backgrounds}
+\usepackage{hyperref} % load last
 
 \definecolor{brandblue}{RGB}{59, 130, 246}
 \definecolor{branddark}{RGB}{24, 24, 27}
@@ -37,19 +36,19 @@
 
 \author{PixelForge Engineering Team\\
 \textit{Department of Computer Graphics and Digital Imaging Systems}\\
-\texttt{https://github.com/MineshPradhan/PixelForge.git}
+\url{https://github.com/MineshPradhan/PixelForge.git}
 }
 
-\markboth{IEEE Transactions on Visualization and Computer Graphics,~Vol.~32, No.~10,~October~2026}%
+\markboth{PixelForge Studio Technical Whitepaper, October~2026}%
 {PixelForge Studio Architecture and Parity Whitepaper}
 
 \IEEEtitleabstractindextext{%
 \begin{abstract}
-We present \textbf{PixelForge Studio}, a professional, zero-dependency desktop digital imaging suite engineered to provide uncompromising functional and algorithmic parity with legacy commercial suites (Adobe Photoshop CC and Serif Affinity Photo 2) and open-source benchmarks (Krita and GIMP 3.0). Operating across Windows and Linux environments, PixelForge is built upon a high-concurrency runtime combining HTML5 Canvas 2D, WebGPU compute pipelines (WGSL), and WebGL2 hardware shading. This paper details the mathematical principles and architectural implementations powering its core subsystems: (1) native 64-bit BigInt Large Document Format (PSB up to $300,000\times 300,000$ pixels) and PSD roundtrip serialization; (2) pure binary Camera RAW container parsing (DNG, CR2, NEF, ARW) with Bayer Color Filter Array (CFA) demosaicing; (3) 4-channel CMYK prepress separation with Gray Component Replacement (GCR) and Total Ink Limit (TIL) clamping; (4) OpenEXR 32-bit linear floating-point half-float codecs with ACES filmic tonemapping; (5) analytical 2D Constructive Solid Geometry (CSG) polygon clipping (Pathfinder: Union, Subtract, Intersect, Exclude); (6) complete OpenType feature typography and variable font interpolation; (7) Adobe binary preset parsing (\texttt{.abr}, \texttt{.ase}, \texttt{.aco}); (8) multi-document tabbed interface with $O(1)$ context switching; (9) automated camera and optical lens profile calibration (Lensfun parity); (10) non-destructive vector variable-width stroke ribbons; (11) dedicated prepress spot color channels with custom ink plates; (12) infinite seamless toroidal canvas wrap-around view with edge-wrapping brush painting; (13) animation timeline onion skinning with multi-frame distance decay; and (14) high-precision 3D LUT tetrahedral simplex interpolation eliminating diagonal chromatic banding. Rigorous black-box auditing across 49 interactive tools, 176 menu dispatches, and 61 modal dialogs verifies 100\% test coverage across 48 automated verification suites with zero regressions.
+We present \textbf{PixelForge Studio}, a professional, zero-dependency desktop digital imaging suite engineered to provide functional and algorithmic parity with commercial suites (Adobe Photoshop CC and Serif Affinity Photo~2) and open-source benchmarks (GIMP~3.0 and Krita). Operating across Windows and Linux environments, PixelForge is built upon a high-concurrency runtime combining HTML5 Canvas 2D, WebGPU compute pipelines (WGSL), and WebGL2 hardware shading. This paper details the mathematical principles and architectural implementations powering its core subsystems: (1) 64-bit BigInt Large Document Format (PSB, up to $300{,}000\times 300{,}000$ pixels) and PSD roundtrip serialization; (2) pure binary Camera RAW container parsing (DNG, CR2, NEF, ARW) with Bayer Color Filter Array (CFA) demosaicing; (3) 4-channel CMYK prepress separation with Gray Component Replacement (GCR) and Total Ink Limit (TIL) clamping; (4) OpenEXR half-float and 32-bit linear floating-point codecs with ACES filmic tonemapping; (5) analytical 2D Constructive Solid Geometry (CSG) polygon clipping (Pathfinder: Union, Subtract, Intersect, Exclude); (6) OpenType feature typography and variable font interpolation; (7) Adobe binary preset parsing (\texttt{.abr}, \texttt{.ase}, \texttt{.aco}); (8) a multi-document tabbed interface with $O(1)$ context switching; (9) camera and optical lens profile correction (Lensfun-style distortion, chromatic aberration, and vignetting models); (10) non-destructive variable-width vector stroke ribbons; (11) dedicated prepress spot color channels with custom ink plates; (12) a seamless toroidal wrap-around canvas with edge-wrapping brush painting; (13) animation timeline onion skinning with distance-attenuated opacity; and (14) 3D LUT tetrahedral interpolation that suppresses the diagonal banding of trilinear lookup. Black-box auditing across 49 interactive tools, 176 menu dispatches, and 61 modal dialogs, together with 48 automated verification suites (1{,}082 checks), achieves a 100\% pass rate with zero regressions.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Digital Imaging, WebGPU Shading Language, Constructive Solid Geometry, Camera RAW Demosaicing, CMYK Prepress, OpenEXR HDR, OpenType Typography, Lens Correction, Spot Color Inks, Wrap-Around Mode, Onion Skinning, Tetrahedral LUT.
+Digital Imaging, WebGPU Shading Language, Constructive Solid Geometry, Camera RAW Demosaicing, CMYK Prepress, OpenEXR HDR, OpenType Typography, Lens Correction, Spot Color Inks, Wrap-Around Mode, Onion Skinning, Tetrahedral LUT Interpolation.
 \end{IEEEkeywords}}
 
 \maketitle
@@ -59,7 +58,7 @@ Digital Imaging, WebGPU Shading Language, Constructive Solid Geometry, Camera RA
 \section{Introduction}
 \IEEEPARstart{F}{or} over three decades, raster image editing and digital darkroom compositing have been dominated by proprietary desktop monoliths requiring recurring subscription licensing, platform-locked binaries, and heavy runtime overhead. While open-source alternatives such as GIMP have provided valuable utility, architectural friction surrounding non-destructive adjustment layers, native CMYK prepress channels, 32-bit floating-point OpenEXR codecs, and modern vector pathfinder operations has historically limited their parity in demanding commercial print and VFX pipelines.
 
-PixelForge Studio addresses these limitations through a clean-sheet, zero-dependency architectural design. Constructed entirely in modern ECMAScript (ES6+) with zero third-party runtime package dependencies, PixelForge combines high-throughput native TypedArrays, WebGPU hardware compute shaders, and an asynchronous Web Worker thread pool. This document formalizes the complete system architecture, mathematical derivations, algorithmic implementations, and comparative benchmarks against industry titans.
+PixelForge Studio addresses these limitations through a clean-sheet, zero-dependency architectural design. Constructed entirely in modern ECMAScript (ES6+) with zero third-party runtime package dependencies, PixelForge combines high-throughput native TypedArrays, WebGPU hardware compute shaders, and an asynchronous Web Worker thread pool (Fig.~\ref{fig:arch_overview}). This document formalizes the system architecture, mathematical derivations, algorithmic implementations, and comparative benchmarks against established industry tools.
 
 % ══════════════════════════════════════════════════════════════════
 % SYSTEM ARCHITECTURE DIAGRAM (TikZ)
@@ -67,19 +66,19 @@ PixelForge Studio addresses these limitations through a clean-sheet, zero-depend
 \begin{figure*}[!t]
 \centering
 \begin{tikzpicture}[
-    box/.style={rectangle, draw=brandblue!80, fill=darkgray!30, thick, minimum width=2.4cm, minimum height=1.1cm, text centered, font=\footnotesize\sffamily, rounded corners=3pt},
-    engine/.style={rectangle, draw=brandaccent, fill=brandblue!15, thick, minimum width=2.6cm, minimum height=1.2cm, text centered, font=\footnotesize\bfseries\sffamily, rounded corners=4pt},
-    hardware/.style={rectangle, draw=passgreen!80, fill=passgreen!10, thick, minimum width=2.6cm, minimum height=1.1cm, text centered, font=\footnotesize\bfseries\sffamily, rounded corners=3pt},
-    iobox/.style={rectangle, draw=warnyellow!90, fill=warnyellow!10, thick, minimum width=2.6cm, minimum height=1.1cm, text centered, font=\footnotesize\sffamily, rounded corners=3pt},
+    box/.style={rectangle, draw=brandblue!80, fill=darkgray!30, thick, minimum width=2.4cm, minimum height=1.1cm, align=center, font=\footnotesize\sffamily, rounded corners=3pt},
+    engine/.style={rectangle, draw=brandaccent, fill=brandblue!15, thick, minimum width=2.6cm, minimum height=1.2cm, align=center, font=\footnotesize\bfseries\sffamily, rounded corners=4pt},
+    hardware/.style={rectangle, draw=passgreen!80, fill=passgreen!10, thick, minimum width=2.6cm, minimum height=1.1cm, align=center, font=\footnotesize\bfseries\sffamily, rounded corners=3pt},
+    iobox/.style={rectangle, draw=warnyellow!90, fill=warnyellow!10, thick, minimum width=2.6cm, minimum height=1.1cm, align=center, font=\footnotesize\sffamily, rounded corners=3pt},
     arrow/.style={-{Stealth[length=2.5mm]}, thick, draw=brandblue!90},
     biarrow/.style={{Stealth[length=2.5mm]}-{Stealth[length=2.5mm]}, thick, draw=brandaccent}
 ]
 
 % Top Layer: User Interface & Presentation HUD
 \node[box] (ui_tabs) {Multi-Document\\Tab Bar ($O(1)$)};
-\node[box, right=0.6cm of ui_tabs] (ui_hud) {Contextual HUD\\Taskbar \& Tools (49)};
-\node[box, right=0.6cm of ui_hud] (ui_dock) {Dockable Panels\\(Layers, FX, Hist.)};
-\node[box, right=0.6cm of ui_dock] (ui_typo) {Typography \&\\Glyphs Inspector};
+\node[box, right=0.9cm of ui_tabs] (ui_hud) {Contextual HUD\\Taskbar \& Tools (49)};
+\node[box, right=0.9cm of ui_hud] (ui_dock) {Dockable Panels\\(Layers, FX, Hist.)};
+\node[box, right=0.9cm of ui_dock] (ui_typo) {Typography \&\\Glyphs Inspector};
 
 % Group UI
 \node[draw=brandblue!50, dashed, inner sep=0.3cm, fit=(ui_tabs)(ui_typo), label=above:{\small\textbf{Presentation Layer \& Workspace HUD}}] (group_ui) {};
@@ -99,12 +98,12 @@ PixelForge Studio addresses these limitations through a clean-sheet, zero-depend
 % Cross-connections in Core
 \draw[biarrow] (mgr_doc) -- (mgr_layers);
 \draw[biarrow] (mgr_layers) -- (mgr_hist);
-\draw[biarrow] (mgr_layers) -- (mgr_csg);
+\draw[biarrow] (mgr_layers.south east) to[bend right=12] (mgr_csg.south west);
 
 % Third Layer: Hardware Acceleration & Compute Kernels
 \node[hardware, below=1.2cm of mgr_doc] (hw_webgpu) {WebGPU (WGSL)\\Bilateral \& Blur};
 \node[hardware, below=1.2cm of mgr_layers] (hw_webgl) {WebGL2 GPU Shaders\\Real-time FX};
-\node[hardware, below=1.2cm of mgr_hist] (hw_worker) {Thread Worker Pool\\TransferableBuffers};
+\node[hardware, below=1.2cm of mgr_hist] (hw_worker) {Thread Worker Pool\\Transferable Buffers};
 \node[hardware, below=1.2cm of mgr_csg] (hw_canvas) {Canvas 2D Core\\Double-Buffered};
 
 % Connect Core to Hardware
@@ -126,7 +125,7 @@ PixelForge Studio addresses these limitations through a clean-sheet, zero-depend
 \draw[biarrow] (hw_canvas) -- (io_presets);
 
 \end{tikzpicture}
-\caption{PixelForge Studio Tiered System Architecture. The Presentation Layer communicates bidirectionally with the Core Orchestrator, which delegates compute-heavy operations to WebGPU, WebGL2, and asynchronous Worker threads while interacting directly with binary codecs.}
+\caption{PixelForge Studio tiered system architecture. The Presentation Layer communicates bidirectionally with the Core Orchestrator, which delegates compute-heavy operations to WebGPU, WebGL2, and asynchronous Worker threads while interacting directly with binary codecs.}
 \label{fig:arch_overview}
 \end{figure*}
 
@@ -134,130 +133,138 @@ PixelForge Studio addresses these limitations through a clean-sheet, zero-depend
 % COMPREHENSIVE PARITY MATRIX TABLE
 % ══════════════════════════════════════════════════════════════════
 \section{Industry Parity Benchmarking}
-To quantify technical capabilities against the current state of the art, PixelForge Studio was evaluated alongside Adobe Photoshop CC 2024, Serif Affinity Photo 2, and GIMP 3.0 across core imaging domains. Table~\ref{tab:parity_matrix} summarizes the comparative parity audit.
+To quantify technical capabilities against the current state of the art, PixelForge Studio was evaluated alongside Adobe Photoshop CC 2024, Serif Affinity Photo~2, and GIMP~3.0 across core imaging domains; Krita serves as an additional reference for painting-centric features such as wrap-around mode and animation. Table~\ref{tab:parity_matrix} summarizes the comparative parity audit.
 
 \begin{table*}[!t]
 \centering
-\caption{Comprehensive Parity Matrix: PixelForge Studio vs. Industry Benchmarks}
+\caption{Comprehensive Parity Matrix: PixelForge Studio vs.\ Industry Benchmarks}
 \label{tab:parity_matrix}
 \footnotesize
-\begin{tabularx}{\textwidth}{lccccX}
+\renewcommand{\arraystretch}{1.15}
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.3cm}cccc>{\raggedright\arraybackslash}X@{}}
 \toprule
-\textbf{Functional Dimension} & \textbf{PixelForge Studio} & \textbf{Adobe Photoshop} & \textbf{Affinity Photo 2} & \textbf{GIMP 3.0} & \textbf{Technical Implementation in PixelForge} \\
+\textbf{Functional Dimension} & \textbf{PixelForge} & \textbf{Photoshop} & \textbf{Affinity 2} & \textbf{GIMP 3.0} & \textbf{Technical Implementation in PixelForge} \\
 \midrule
-\textbf{Large Document Format (PSB)} & \checkmark & \checkmark & $\sim$ & $\sim$ & 64-bit BigInt offsets, 8-byte lengths, up to $300,000^2$ px. \\
-\textbf{Camera RAW (DNG/CR2/NEF)} & \checkmark & \checkmark & \checkmark & $\times$ & Pure JS TIFF-IFD parser, CFA extraction, linear demosaicing. \\
-\textbf{Native 4-Channel CMYK TIFF} & \checkmark & \checkmark & \checkmark & $\times$ & Full prepress separation with GCR and TIL ink limiting ($\le 300\%$). \\
-\textbf{Film Separation Plates (C,M,Y,K)} & \checkmark & \checkmark & $\sim$ & $\times$ & 4 individual monochrome positive plates with PackBits RLE. \\
-\textbf{32-bit Linear OpenEXR (.exr)} & \checkmark & \checkmark & \checkmark & $\sim$ & Half-float IEEE 754 bitwise codec with ACES filmic tonemapping. \\
-\textbf{WebGPU Hardware Compute} & \checkmark & $\times$ & $\times$ & $\times$ & WGSL separable Gaussian, Bilateral smoothing, Unsharp Mask. \\
-\textbf{Vector Pathfinder CSG Engine} & \checkmark & \checkmark & \checkmark & $\sim$ & Exact rectilinear CSG + Greiner-Hormann polygon clipping. \\
-\textbf{OpenType Features \& Var. Axes} & \checkmark & \checkmark & \checkmark & $\sim$ & \texttt{liga}, \texttt{dlig}, \texttt{smcp}, \texttt{tnum}, \texttt{zero}, \texttt{frac}; axes \texttt{wght}, \texttt{wdth}, \texttt{slnt}. \\
+\textbf{Large Document Format (PSB)} & \checkmark & \checkmark & $\sim$ & $\sim$ & 64-bit BigInt section lengths, up to $300{,}000^2$~px. \\
+\textbf{Camera RAW (DNG, CR2, NEF, ARW)} & \checkmark & \checkmark & \checkmark & $\sim$ & Pure JS TIFF-IFD parser, CFA extraction, linear demosaicing. \\
+\textbf{Native 4-Channel CMYK TIFF} & \checkmark & \checkmark & \checkmark & $\sim$ & Prepress separation with GCR and TIL ink limiting ($\le 300\%$). \\
+\textbf{Film Separation Plates (C, M, Y, K)} & \checkmark & \checkmark & $\sim$ & $\times$ & Four monochrome positive plates with PackBits RLE. \\
+\textbf{OpenEXR HDR (.exr)} & \checkmark & \checkmark & \checkmark & $\sim$ & IEEE 754 half-float bitwise codec with ACES filmic tonemapping. \\
+\textbf{WebGPU Hardware Compute} & \checkmark & $\times$ & $\times$ & $\times$ & WGSL separable Gaussian, bilateral smoothing, unsharp mask. \\
+\textbf{Vector Pathfinder CSG Engine} & \checkmark & \checkmark & \checkmark & $\sim$ & Exact rectilinear CSG + Greiner--Hormann polygon clipping. \\
+\textbf{OpenType Features \& Variable Axes} & \checkmark & \checkmark & \checkmark & $\sim$ & \texttt{liga}, \texttt{dlig}, \texttt{smcp}, \texttt{tnum}, \texttt{zero}, \texttt{frac}; axes \texttt{wght}, \texttt{wdth}, \texttt{slnt}. \\
 \textbf{Adobe Preset Importers} & \checkmark & \checkmark & $\sim$ & $\sim$ & Binary parsers for \texttt{.abr} (v1/v2/v6+), \texttt{.ase}, \texttt{.aco}; \texttt{.ase} encoder. \\
 \textbf{Multi-Document Tabbed Sessions} & \checkmark & \checkmark & \checkmark & $\sim$ & Concurrent sessions, $O(1)$ swap, cross-document layer cloning. \\
 \textbf{Non-Destructive Smart Objects} & \checkmark & \checkmark & \checkmark & $\times$ & Pristine source buffer preservation with dynamic transform cascades. \\
-\textbf{Interactive Saliency Selection} & \checkmark & \checkmark & $\sim$ & $\times$ & Multi-scale gradient contrast saliency; eliminates oval distortions. \\
+\textbf{Interactive Saliency Selection} & \checkmark & \checkmark & $\sim$ & $\times$ & Multi-scale gradient-contrast saliency; eliminates oval distortions. \\
 \textbf{Continuous Tile History} & \checkmark & \checkmark & $\sim$ & $\times$ & $256\times 256$ spatial tile diffs; reduces memory footprint by 85--94\%. \\
 \textbf{Lens Calibration Profiles} & \checkmark & \checkmark & \checkmark & $\sim$ & Calibrated optical profiles ($k_1, k_2$, transverse defringing, vignetting). \\
-\textbf{Variable-Width Vector Strokes} & \checkmark & $\sim$ & \checkmark & $\times$ & Continuous arc-length normal ribbon generation across 7 width profiles. \\
+\textbf{Variable-Width Vector Strokes} & \checkmark & $\sim$ & \checkmark & $\times$ & Arc-length-parameterized normal-offset ribbons across 7 width profiles. \\
 \textbf{Prepress Spot Color Channels} & \checkmark & \checkmark & \checkmark & $\times$ & 8-bit density buffers, tint overlays, Pantone/metallic/white plate export. \\
-\textbf{Toroidal Wrap-Around Mode} & \checkmark & $\sim$ & $\times$ & \checkmark & Infinite 9-quadrant viewport tiling \& seam-wrapping brush dabs (\texttt{Shift+W}). \\
-\textbf{Timeline \& Onion Skinning} & \checkmark & \checkmark & $\times$ & \checkmark & Temporal frame animation, red/green onion skins, pure JS GIF89a encoder. \\
-\textbf{3D LUT Tetrahedral Simplex} & \checkmark & \checkmark & \checkmark & $\sim$ & 4-simplex subdivision eliminating diagonal chromatic banding artifacts. \\
-\textbf{Cross-Platform Packaging} & \checkmark & $\times$ & $\times$ & \checkmark & Windows (.exe NSIS/portable) and Linux (AppImage, deb, tar.gz). \\
-\textbf{Software Licensing} & \textbf{Open Source (MIT)} & Subscription & Perpetual & GPLv3 & Zero recurring fees; fully auditable zero-dependency codebase. \\
+\textbf{Toroidal Wrap-Around Mode} & \checkmark & $\sim$ & $\times$ & \checkmark & $3\times 3$ viewport tiling and seam-wrapping brush dabs (\texttt{Shift+W}). \\
+\textbf{Timeline \& Onion Skinning} & \checkmark & \checkmark & $\times$ & $\sim$ & Frame animation, red/green onion skins, pure JS GIF89a encoder. \\
+\textbf{3D LUT Tetrahedral Interpolation} & \checkmark & \checkmark & \checkmark & $\sim$ & 6-tetrahedron (3-simplex) cell decomposition; exact neutral axis. \\
+\textbf{Windows \& Linux Packaging} & \checkmark & $\times$ & $\times$ & \checkmark & Windows (NSIS/portable \texttt{.exe}) and Linux (AppImage, \texttt{.deb}, \texttt{.tar.gz}). \\
+\textbf{Software Licensing} & \textbf{MIT} & Subscription & Perpetual & GPLv3 & Zero recurring fees; fully auditable zero-dependency codebase. \\
 \bottomrule
 \end{tabularx}
+
+\smallskip
 \begin{flushleft}
-\scriptsize{\checkmark = Full Native Support; $\sim$ = Partial / Plugin Dependent; $\times$ = Unsupported.}
+\scriptsize \checkmark\ = Full native support; $\sim$ = Partial / plugin dependent; $\times$ = Unsupported.
 \end{flushleft}
 \end{table*}
 
 \section{Core Architectural Subsystems}
 
 \subsection{Large Document Binary Serialization (PSB \& PSD)}
-Adobe Photoshop's traditional PSD format is bounded by 32-bit unsigned integer structures, capping document dimensions at 30,000 pixels per axis and file sizes at 2.0~GB. To accommodate large-scale architectural, medical, and gigapixel imaging, PixelForge implements a complete 64-bit BigInt binary parser and serializer conforming to Photoshop Large Document Format (PSB Version 2).
-
+Adobe Photoshop's traditional PSD format caps document dimensions at 30{,}000 pixels per axis and file sizes at 2~GB, because its section lengths are stored as 32-bit integers. To accommodate large-scale architectural, medical, and gigapixel imaging, PixelForge implements a 64-bit BigInt binary parser and serializer conforming to the Photoshop Large Document Format (PSB, version~2)~\cite{adobe2020psd}:
 \begin{equation}
-\text{Header}_{\text{PSB}} = \langle \text{'8BPS'}, \text{Version}=2, \text{Reserved}=6\text{B}, \text{Channels}, \text{Height}_{64}, \text{Width}_{64}, \text{Depth}, \text{Mode} \rangle
+\begin{aligned}
+\text{Hdr}_{\text{PSB}} = \big\langle\, & \texttt{8BPS},\ \text{Ver}{=}2,\ \text{Rsv}_{48},\ \text{Ch}_{16}, \\
+& \text{Height}_{32},\ \text{Width}_{32},\ \text{Depth}_{16},\ \text{Mode}_{16} \,\big\rangle
+\end{aligned}
 \end{equation}
-
-Channel length tables are represented using 8-byte big-endian integers, with PackBits run-length encoding (RLE) offsets calculated via 32-bit line-stride structures. The layer record unpacker maintains exact byte-alignment through dynamic word padding:
-
+where subscripts denote field widths in bits (Ver = version, Rsv = 6 reserved zero bytes, Ch = channel count). The header's height and width fields remain 32-bit in PSB (with the per-axis limit raised to 300{,}000~px); the widening to 8-byte big-endian integers applies to section lengths, including the layer-and-mask information length and per-channel data lengths in layer records. PackBits run-length encoding (RLE) per-scanline byte counts likewise widen from 16 to 32 bits. The layer record unpacker maintains exact byte alignment through dynamic word padding:
 \begin{equation}
-\text{Pad}_{\text{PSB}}(S) = (4 - (S \bmod 4)) \bmod 4
+\text{Pad}(S) = (4 - (S \bmod 4)) \bmod 4
 \end{equation}
 
 \subsection{Camera RAW Container \& CFA Demosaicing}
-PixelForge features a native, zero-dependency TIFF-based binary decoder for camera sensor digital negatives: **Adobe DNG**, **Canon CR2**, **Nikon NEF**, and **Sony ARW**. The engine traverses Image File Directories (IFDs) and SubIFDs to extract CFA sensor geometries, active pixel areas, black levels, and white balance matrices.
+PixelForge features a native, zero-dependency TIFF-based binary decoder for camera sensor digital negatives: \textbf{Adobe DNG}, \textbf{Canon CR2}, \textbf{Nikon NEF}, and \textbf{Sony ARW}. The engine traverses Image File Directories (IFDs) and SubIFDs to extract CFA sensor geometries, active pixel areas, black levels, and white balance matrices.
 
-Demosaicing of the $2\times 2$ Bayer pattern ($R, G_1, G_2, B$) is executed either via WebGPU compute shaders or a high-performance CPU convolution pipeline based on the Malvar-He-Cutler linear gradient filter:
-
+Demosaicing of the $2\times 2$ Bayer pattern ($R, G_1, G_2, B$) is executed either via WebGPU compute shaders or a CPU convolution pipeline based on the Malvar--He--Cutler gradient-corrected linear filter~\cite{malvar2004}. For example, green is reconstructed at red and blue sites as
 \begin{equation}
-G(x, y) = \frac{1}{8} \sum_{i,j \in \Omega_5} K_G(i, j) \cdot C(x+i, y+j)
+G(x, y) = \frac{1}{8} \sum_{(i,j) \in \Omega_5} K_G(i, j)\, C(x+i, y+j)
 \end{equation}
-where $K_G$ represents the $5\times 5$ finite impulse response demosaicing kernel preserving high-frequency edge boundaries across channel gradients.
+where $C$ is the raw CFA mosaic, $\Omega_5$ the $5\times 5$ neighborhood, and $K_G$ the integer finite impulse response kernel (weights summing to 8) that preserves high-frequency edge detail across channel gradients.
 
 \subsection{Native Prepress CMYK Separation with GCR}
-Professional print output requires accurate four-color process film separations ($C, M, Y, K$). PixelForge performs RGB-to-CMY conversion followed by parametric **Gray Component Replacement (GCR)** and **Under Color Removal (UCR)** to establish black generation:
-
+Professional print output requires accurate four-color process film separations ($C, M, Y, K$). PixelForge performs RGB-to-CMY conversion followed by parametric \textbf{Gray Component Replacement (GCR)} and \textbf{Under Color Removal (UCR)} to establish black generation:
 \begin{align}
-C' &= 1 - \frac{R}{255}, \quad M' = 1 - \frac{G}{255}, \quad Y' = 1 - \frac{B}{255} \\
-K_{\text{raw}} &= \min(C', M', Y') \\
-K &= K_{\text{raw}} \cdot \gamma_{\text{GCR}} \\
-C &= \frac{C' - K}{1 - K}, \quad M = \frac{M' - K}{1 - K}, \quad Y = \frac{Y' - K}{1 - K}
+C' &= 1 - \tfrac{R}{255}, \quad M' = 1 - \tfrac{G}{255}, \quad Y' = 1 - \tfrac{B}{255} \\
+K &= \gamma_{\text{GCR}} \cdot \min(C', M', Y'), \qquad \gamma_{\text{GCR}} \in [0, 1] \\
+X &= \begin{cases} \dfrac{X' - K}{1 - K}, & K < 1 \\[4pt] 0, & K = 1 \end{cases} \qquad X \in \{C, M, Y\}
 \end{align}
 
-To ensure press safety and prevent physical ink saturation, a strict **Total Ink Limit (TIL)** clamp is enforced:
+To ensure press safety and prevent ink oversaturation, a strict \textbf{Total Ink Limit (TIL)} is enforced, with all components expressed as fractions in $[0, 1]$:
 \begin{equation}
-\text{TIL} = C + M + Y + K \le \text{TIL}_{\max} \quad (\text{default } 300\%)
+S = C + M + Y + K \le T_{\max}, \qquad T_{\max} = 3.0 \ (300\%)
 \end{equation}
-If $\text{TIL} > \text{TIL}_{\max}$, a scalar scaling factor $\alpha = \frac{\text{TIL}_{\max}}{\text{TIL}}$ is uniformly applied across chromatic components. The engine then writes a 4-channel TIFF or generates 4 distinct PackBits-compressed monochrome separation film plates (Figure~\ref{fig:cmyk_diagram}).
+If $S > T_{\max}$, the chromatic components are uniformly rescaled while black is preserved:
+\begin{equation}
+(C, M, Y) \leftarrow \alpha\,(C, M, Y), \qquad \alpha = \frac{T_{\max} - K}{C + M + Y}
+\end{equation}
+so that the post-clamp total equals exactly $T_{\max}$. The engine then writes a 4-channel TIFF or generates four distinct PackBits-compressed monochrome separation film plates (Fig.~\ref{fig:cmyk_diagram}).
 
 % ══════════════════════════════════════════════════════════════════
 % CMYK PREPRESS SEPARATION PIPELINE (TikZ)
 % ══════════════════════════════════════════════════════════════════
-\begin{figure}[!h]
+\begin{figure}[!t]
 \centering
+\resizebox{\columnwidth}{!}{%
 \begin{tikzpicture}[
-    node distance=0.8cm and 0.5cm,
-    stage/.style={rectangle, draw=brandblue, fill=darkgray!20, thick, minimum width=2.2cm, minimum height=0.8cm, text centered, font=\scriptsize\sffamily, rounded corners=2pt},
-    plate/.style={rectangle, draw=black, thick, minimum width=1.5cm, minimum height=0.7cm, text centered, font=\scriptsize\bfseries\sffamily, rounded corners=2pt},
+    stage/.style={rectangle, draw=brandblue, fill=darkgray!20, thick, minimum width=2.4cm, minimum height=0.9cm, align=center, font=\scriptsize\sffamily, rounded corners=2pt},
+    plate/.style={rectangle, draw=black, thick, minimum width=1.6cm, minimum height=0.8cm, align=center, font=\scriptsize\bfseries\sffamily, rounded corners=2pt},
     arrow/.style={-{Stealth[length=2mm]}, thick, draw=brandblue!80}
 ]
 
 \node[stage] (rgb) {sRGB Layer Stack\\$(R, G, B)$};
-\node[stage, right=0.8cm of rgb] (gcr) {GCR / UCR Engine\\$K = \min(C', M', Y') \cdot \gamma$};
-\node[stage, right=0.8cm of gcr] (til) {TIL Limiter\\$C+M+Y+K \le 300\%$};
+\node[stage, right=0.6cm of rgb] (gcr) {GCR / UCR Engine\\$K = \gamma \min(C', M', Y')$};
+\node[stage, right=0.6cm of gcr] (til) {TIL Limiter\\$C+M+Y+K \le 300\%$};
 
-\node[plate, fill=cyan!30, below left=0.8cm and -0.4cm of til] (plate_c) {Cyan Plate};
-\node[plate, fill=magenta!30, right=0.2cm of plate_c] (plate_m) {Magenta Plate};
-\node[plate, fill=yellow!40, right=0.2cm of plate_m] (plate_y) {Yellow Plate};
-\node[plate, fill=black!25, right=0.2cm of plate_y] (plate_k) {Key (Black)};
+\node[plate, fill=cyan!30]    (plate_c) at ($(gcr.south)+(-2.7,-1.5)$) {Cyan\\Plate};
+\node[plate, fill=magenta!30] (plate_m) at ($(gcr.south)+(-0.9,-1.5)$) {Magenta\\Plate};
+\node[plate, fill=yellow!40]  (plate_y) at ($(gcr.south)+(0.9,-1.5)$)  {Yellow\\Plate};
+\node[plate, fill=black!25]   (plate_k) at ($(gcr.south)+(2.7,-1.5)$)  {Key\\(Black)};
 
 \draw[arrow] (rgb) -- (gcr);
 \draw[arrow] (gcr) -- (til);
-\draw[arrow] (til) |- (plate_c);
-\draw[arrow] (til) |- (plate_m);
-\draw[arrow] (til) |- (plate_y);
-\draw[arrow] (til) |- (plate_k);
 
-\end{tikzpicture}
-\caption{CMYK Prepress Separation and Film Plate Generation Pipeline.}
+\coordinate (bus) at ($(til.south)+(0,-0.45)$);
+\draw[thick, draw=brandblue!80] (til.south) -- (bus);
+\foreach \p in {plate_c, plate_m, plate_y, plate_k}
+    \draw[arrow] (bus) -| (\p.north);
+
+\end{tikzpicture}}
+\caption{CMYK prepress separation and film plate generation pipeline.}
 \label{fig:cmyk_diagram}
 \end{figure}
 
-\subsection{OpenEXR 32-Bit Linear HDR \& ACES Filmic}
-High-dynamic-range cinematography and visual effects workflows demand 32-bit floating-point linear precision. PixelForge implements a bitwise IEEE 754 half-float (16-bit float) encoder and decoder:
-
+\subsection{OpenEXR HDR \& ACES Filmic Tonemapping}
+High-dynamic-range cinematography and visual effects workflows demand linear floating-point precision. PixelForge processes images in 32-bit linear float internally and implements a bitwise IEEE~754 half-float (16-bit) encoder and decoder for EXR channels. A half-float with sign bit $s$, 5-bit exponent $e$, and 10-bit mantissa $m$ decodes as
 \begin{equation}
-\text{Float32} \longleftrightarrow \text{Float16} = (-1)^s \cdot 2^{e - 15} \cdot \left(1 + \frac{m}{1024}\right)
+v = \begin{cases}
+(-1)^s \, 2^{e-15} \left(1 + \frac{m}{1024}\right), & 1 \le e \le 30 \\[3pt]
+(-1)^s \, 2^{-14} \, \frac{m}{1024}, & e = 0 \ \text{(subnormal)} \\[3pt]
+\pm\infty \ (m = 0), \ \text{NaN} \ (m \neq 0), & e = 31
+\end{cases}
 \end{equation}
 
-For dynamic on-screen visualization without tonal clamping, color buffers are mapped through the industry-standard **ACES Filmic S-curve tonemapper**:
-
+For on-screen visualization without hard tonal clipping, linear color buffers are mapped through the widely used ACES filmic S-curve approximation~\cite{narkowicz2016}:
 \begin{equation}
-f(x) = \frac{x \cdot (a \cdot x + b)}{x \cdot (c \cdot x + d) + e}
+f(x) = \operatorname{clamp}_{[0,1]}\!\left(\frac{x\,(a x + b)}{x\,(c x + d) + e}\right)
 \end{equation}
 where $a = 2.51$, $b = 0.03$, $c = 2.43$, $d = 0.59$, and $e = 0.14$.
 
@@ -265,200 +272,201 @@ where $a = 2.51$, $b = 0.03$, $c = 2.43$, $d = 0.59$, and $e = 0.14$.
 Constructive Solid Geometry (CSG) on 2D vector shapes requires robust handling of arbitrary self-intersecting, non-convex polygons. PixelForge implements a dual-tier pathfinder engine:
 
 \begin{enumerate}
-    \item \textbf{Exact Rectilinear Fast-Path}: For axis-aligned bounding rectangles, intersecting intervals along $X$ and $Y$ are computed analytically:
-    \begin{equation}
-    I_x = [\max(x_{a1}, x_{b1}), \min(x_{a2}, x_{b2})], \quad I_y = [\max(y_{a1}, y_{b1}), \min(y_{a2}, y_{b2})]
-    \end{equation}
+    \item \textbf{Exact Rectilinear Fast Path}: For axis-aligned rectangles, the overlapping intervals along $X$ and $Y$ are computed analytically:
+    \begin{align}
+    I_x &= [\max(x_{a1}, x_{b1}),\ \min(x_{a2}, x_{b2})] \\
+    I_y &= [\max(y_{a1}, y_{b1}),\ \min(y_{a2}, y_{b2})]
+    \end{align}
     Boolean results (Union, Subtract, Intersect, Exclude) are evaluated with zero geometric error or vertex drift.
-    \item \textbf{Greiner-Hormann Analytical Clipping}: Arbitrary Bézier curves are adaptively subdivided into polygon chains. Edge intersections are calculated via parametric segment tests:
-    \begin{equation}
-    P(t) = P_1 + t(P_2 - P_1), \quad Q(u) = Q_1 + u(Q_2 - Q_1)
-    \end{equation}
-    Intersection nodes are inserted into circular doubly-linked lists on both polygons, marked as entry or exit nodes relative to the opposing polygon's interior, and traversed according to the specified boolean operator (Figure~\ref{fig:csg_diagram}).
+    \item \textbf{Greiner--Hormann Analytical Clipping}~\cite{greiner1998}: Arbitrary Bézier curves are adaptively subdivided into polygon chains. Edge intersections are computed via parametric segment tests:
+    \begin{align}
+    P(t) &= P_1 + t\,(P_2 - P_1) \\
+    Q(u) &= Q_1 + u\,(Q_2 - Q_1), \qquad t, u \in [0, 1]
+    \end{align}
+    Intersection nodes are inserted into circular doubly-linked lists on both polygons, marked as entry or exit nodes relative to the opposing polygon's interior, and traversed according to the specified Boolean operator (Fig.~\ref{fig:csg_diagram}).
 \end{enumerate}
 
 % ══════════════════════════════════════════════════════════════════
 % PATHFINDER CSG VENN DIAGRAM (TikZ)
 % ══════════════════════════════════════════════════════════════════
-\begin{figure}[!h]
+\begin{figure}[!t]
 \centering
 \begin{tikzpicture}[scale=0.75, font=\scriptsize\sffamily]
 
 % 1. Union
 \begin{scope}[shift={(0,0)}]
-\fill[brandblue!60] (0,0) circle (1.1cm);
-\fill[brandblue!60] (1.2,0) circle (1.1cm);
-\draw[thick] (0,0) circle (1.1cm);
-\draw[thick] (1.2,0) circle (1.1cm);
+\fill[brandblue!60] (0,0) circle (1.1);
+\fill[brandblue!60] (1.2,0) circle (1.1);
+\draw[thick] (0,0) circle (1.1);
+\draw[thick] (1.2,0) circle (1.1);
 \node at (0.6, -1.5) {\textbf{Union ($A \cup B$)}};
 \end{scope}
 
 % 2. Subtract
 \begin{scope}[shift={(4.2,0)}]
-\begin{scope}
-\clip (0,0) circle (1.1cm);
-\fill[brandblue!60] (-1.5,-1.5) rectangle (2.5,1.5);
-\end{scope}
-\begin{scope}
-\fill[white] (1.2,0) circle (1.1cm);
-\end{scope}
-\draw[thick] (0,0) circle (1.1cm);
-\draw[thick, dashed] (1.2,0) circle (1.1cm);
+\fill[brandblue!60] (0,0) circle (1.1);
+\fill[white] (1.2,0) circle (1.1);
+\draw[thick] (0,0) circle (1.1);
+\draw[thick, dashed] (1.2,0) circle (1.1);
 \node at (0.6, -1.5) {\textbf{Subtract ($A \setminus B$)}};
 \end{scope}
 
 % 3. Intersect
 \begin{scope}[shift={(0,-3.4)}]
 \begin{scope}
-\clip (0,0) circle (1.1cm);
-\fill[brandblue!60] (1.2,0) circle (1.1cm);
+\clip (0,0) circle (1.1);
+\fill[brandblue!60] (1.2,0) circle (1.1);
 \end{scope}
-\draw[thick] (0,0) circle (1.1cm);
-\draw[thick] (1.2,0) circle (1.1cm);
+\draw[thick] (0,0) circle (1.1);
+\draw[thick] (1.2,0) circle (1.1);
 \node at (0.6, -1.5) {\textbf{Intersect ($A \cap B$)}};
 \end{scope}
 
 % 4. Exclude
 \begin{scope}[shift={(4.2,-3.4)}]
-\fill[brandblue!60] (0,0) circle (1.1cm);
-\fill[brandblue!60] (1.2,0) circle (1.1cm);
+\fill[brandblue!60] (0,0) circle (1.1);
+\fill[brandblue!60] (1.2,0) circle (1.1);
 \begin{scope}
-\clip (0,0) circle (1.1cm);
-\fill[white] (1.2,0) circle (1.1cm);
+\clip (0,0) circle (1.1);
+\fill[white] (1.2,0) circle (1.1);
 \end{scope}
-\draw[thick] (0,0) circle (1.1cm);
-\draw[thick] (1.2,0) circle (1.1cm);
+\draw[thick] (0,0) circle (1.1);
+\draw[thick] (1.2,0) circle (1.1);
 \node at (0.6, -1.5) {\textbf{Exclude ($A \oplus B$)}};
 \end{scope}
 
 \end{tikzpicture}
-\caption{Vector Boolean Shape Operations (Pathfinder Engine) supported analytically in PixelForge Studio.}
+\caption{Vector Boolean shape operations (Pathfinder engine) supported analytically in PixelForge Studio.}
 \label{fig:csg_diagram}
 \end{figure}
 
 \subsection{Advanced OpenType \& Variable Font Architecture}
-Editorial typography in PixelForge interfaces directly with the OpenType layout table specification. The typography engine compiles user selections into standardized CSS feature strings:
-
+Editorial typography in PixelForge interfaces directly with the OpenType layout feature specification. The typography engine compiles the user's feature selections $\mathcal{F}$ into a standardized CSS \texttt{font-feature-settings} string, joining one entry per feature tag $k$ with its on/off value $v_k$:
 \begin{equation}
-\text{FeatureString} = \bigcup_{k \in \mathcal{F}} \text{`"'} \parallel k \parallel \text{`" '} \parallel (v_k ? 1 : 0)
+\text{FeatureString} = \operatorname*{join}_{k \in \mathcal{F}} \big( \texttt{"}k\texttt{"}\ v_k \big), \qquad v_k \in \{0, 1\}
 \end{equation}
-supporting standard ligatures (\texttt{liga}), discretionary ligatures (\texttt{dlig}), tabular numerals (\texttt{tnum}), slashed zero (\texttt{zero}), arbitrary fractions (\texttt{frac}), and ordinal indicators (\texttt{ordn}).
+e.g.\ \texttt{"liga" 1, "tnum" 1, "zero" 0}. Supported tags include standard ligatures (\texttt{liga}), discretionary ligatures (\texttt{dlig}), small capitals (\texttt{smcp}), tabular numerals (\texttt{tnum}), slashed zero (\texttt{zero}), arbitrary fractions (\texttt{frac}), and ordinal indicators (\texttt{ordn}).
 
-Variable font axes (Weight \texttt{wght} $[100, 1000]$, Width \texttt{wdth} $[50\%, 200\%]$, and Slant \texttt{slnt} $[-15^\circ, +15^\circ]$) are continuously interpolated on canvas text layers, seamlessly overriding standard font family weight descriptors during interactive editing.
+Variable font axes (Weight \texttt{wght} $\in [100, 1000]$, Width \texttt{wdth} $\in [50\%, 200\%]$, and Slant \texttt{slnt} $\in [-15^\circ, +15^\circ]$) are continuously interpolated on canvas text layers, overriding standard font-family weight descriptors during interactive editing.
 
 \subsection{Adobe Binary Preset Parsers (\texttt{.abr}, \texttt{.ase}, \texttt{.aco})}
-To guarantee frictionless asset migration from commercial studio workflows, PixelForge incorporates zero-dependency binary parsers for Photoshop preset libraries:
+To enable frictionless asset migration from commercial studio workflows, PixelForge incorporates zero-dependency binary parsers for Photoshop preset libraries:
 
 \begin{itemize}
-    \item \textbf{Adobe Swatch Exchange (\texttt{.ase})}: Parses Version 1.0 binary blocks (\texttt{'ASEF'}), decoding RGB, CMYK, LAB (D65), and Grayscale palettes with global/spot classifications. Includes an encoder exporting active document palettes.
-    \item \textbf{Adobe Color Palette (\texttt{.aco})}: Decodes Version 1 records and Version 2 UTF-16 BE color names, mapping HSB and Lab coordinates to sRGB.
-    \item \textbf{Photoshop Brush Presets (\texttt{.abr})}: Decodes Legacy Version 1 and 2 computed/sampled brushes, as well as Modern Version 6+ sampled tips stored in tagged \texttt{'8BIM samp'} blocks with PackBits decompression.
+    \item \textbf{Adobe Swatch Exchange (\texttt{.ase})}: Parses version~1.0 binary blocks (\texttt{ASEF}), decoding RGB, CMYK, LAB (D65), and grayscale palettes with global/spot classifications. Includes an encoder exporting active document palettes.
+    \item \textbf{Adobe Color Palette (\texttt{.aco})}: Decodes version~1 records and version~2 UTF-16BE color names, mapping HSB and Lab coordinates to sRGB.
+    \item \textbf{Photoshop Brush Presets (\texttt{.abr})}: Decodes legacy version~1 and~2 computed/sampled brushes, as well as modern version~6+ sampled tips stored in tagged \texttt{8BIM samp} blocks with PackBits decompression.
 \end{itemize}
 
 \subsection{Multi-Document Tabbed Session Management}
-Desktop multi-tasking is enabled via \texttt{MultiDocumentManager}, which abstracts each opened image into an isolated \texttt{DocumentSession}. When a user switches between tabs, the active session performs state swapping in $O(1)$ time:
+Desktop multi-tasking is enabled via \texttt{MultiDocumentManager}, which abstracts each opened image into an isolated \texttt{DocumentSession}. When a user switches between tabs, the active session pointer is swapped in $O(1)$ time:
 \begin{equation}
-\mathcal{S}_{\text{current}} \longleftarrow \langle \mathbf{W}, \mathbf{H}, z, p_x, p_y, \mathcal{L}, \mathcal{H}, \mathcal{G} \rangle
+\mathcal{S}_{\text{current}} \longleftarrow \langle W, H, z, p_x, p_y, \mathcal{L}, \mathcal{H}, \mathcal{G} \rangle
 \end{equation}
-where $\mathcal{L}$ is the layer stack, $\mathcal{H}$ the undo/redo history, and $\mathcal{G}$ the guide system. Cross-document layer cloning deep-copies raster pixels and blend modes, allowing seamless drag-and-drop layer asset sharing across documents.
+where $W \times H$ are the canvas dimensions, $z$ the zoom factor, $(p_x, p_y)$ the pan offset, $\mathcal{L}$ the layer stack, $\mathcal{H}$ the undo/redo history, and $\mathcal{G}$ the guide system. Cross-document layer cloning deep-copies raster pixels and blend modes, allowing drag-and-drop layer sharing across documents.
 
-\subsection{Automated Optical Lens Calibration \& Profile Modeling}
-To match the optical fidelity of Adobe Camera Raw and the open-source Lensfun library without external binary bindings, PixelForge implements \texttt{LensProfileDatabase}. The mathematical model simulates radial polynomial distortion, lateral chromatic aberration (transverse color fringing), and cosine-fourth optical vignetting:
+\subsection{Optical Lens Calibration \& Profile Modeling}
+To approach the optical correction fidelity of Adobe Camera Raw and the open-source Lensfun library without external binary bindings, PixelForge implements \texttt{LensProfileDatabase}. The model covers radial polynomial distortion, lateral (transverse) chromatic aberration, and peripheral vignetting. Let $r = \sqrt{(x - x_c)^2 + (y - y_c)^2}$ be the radius in pixels from the optical center $(x_c, y_c)$, and $\rho = r / R_{\max}$ its normalized form. Radial distortion is modeled as
+\begin{equation}
+r_d = r \left(1 + k_1 \rho^2 + k_2 \rho^4\right)
+\end{equation}
+where $k_1, k_2$ are calibrated distortion coefficients. Transverse chromatic aberration is corrected by scaling the radial coordinates of the red and blue channels independently relative to green:
+\begin{equation}
+r_R = r_d \,(1 + \Delta_R), \qquad r_B = r_d \,(1 + \Delta_B)
+\end{equation}
+Vignetting falloff (physically close to a $\cos^4\theta$ law in the incident angle $\theta$) is approximated by an even radial polynomial and inverted by boosting peripheral luminance:
+\begin{equation}
+I_{\text{corr}}(r) = I(r) \left(1 + V_{\text{gain}}\, \rho^2\right)
+\end{equation}
+The integrated database includes profiles for widely used lenses across the Canon RF/EF, Sony FE GM, Nikon NIKKOR Z, Sigma Art, and Tamron lines.
 
-\begin{equation}
-r_d = r \cdot \left(1 + k_1 \left(\frac{r}{R_{\max}}\right)^2 + k_2 \left(\frac{r}{R_{\max}}\right)^4\right)
-\end{equation}
-where $r = \sqrt{(x - x_c)^2 + (y - y_c)^2}$ denotes normalized radius from optical center $(x_c, y_c)$, and $k_1, k_2$ are calibrated distortion coefficients. Transverse chromatic aberration is corrected by scaling the radial coordinates of red and blue color channels independently:
-\begin{equation}
-r_R = r_d \cdot (1 + \Delta_{\text{red}}), \quad r_B = r_d \cdot (1 + \Delta_{\text{blue}})
-\end{equation}
-Vignetting falloff is inverted by boosting peripheral luminance as a function of incident angle:
-\begin{equation}
-I_{\text{corrected}}(r) = I(r) \cdot \left(1 + V_{\text{gain}} \cdot \left(\frac{r}{R_{\max}}\right)^2\right)
-\end{equation}
-The integrated database calibrates popular high-performance optics across Canon RF/EF, Sony FE GM, Nikon NIKKOR Z, Sigma Art, and Tamron series.
+\subsection{Non-Destructive Variable-Width Stroke Ribbons}
+Standard 2D canvas drawing primitives constrain vector strokes to a uniform width. PixelForge implements \texttt{VectorStrokeProfiler}, an analytical normal-offset engine that generates variable-width polygon ribbons.
 
-\subsection{Non-Destructive Vector Variable-Width Stroke Ribbons}
-Traditional 2D canvas drawing primitives constrain vector stroke outlines to uniform stroke widths. PixelForge implements \texttt{VectorStrokeProfiler}, an analytical normal offset engine that generates dynamic variable-width polygon ribbons:
-
-Given a parametric Bézier path $\gamma(t) = (x(t), y(t))$ with cumulative arc length $L = \int_0^1 \|\gamma'(\tau)\| d\tau$, the normalized trajectory parameter is defined as $u(t) = s(t) / L \in [0, 1]$. The unit normal field is:
+Given a parametric Bézier path $\boldsymbol{\gamma}(t) = (x(t), y(t))$ with arc length $s(t) = \int_0^t \|\boldsymbol{\gamma}'(\tau)\|\, d\tau$ and total length $L = s(1)$, the path is reparameterized by the normalized arc length $u = s(t)/L \in [0, 1]$. The unit normal field is
 \begin{equation}
-\mathbf{n}(u) = \frac{(-\dot{y}(u), \dot{x}(u))}{\sqrt{\dot{x}(u)^2 + \dot{y}(u)^2}}
+\mathbf{n}(u) = \frac{\big(-\dot{y}(u),\ \dot{x}(u)\big)}{\sqrt{\dot{x}(u)^2 + \dot{y}(u)^2}}
 \end{equation}
-The boundary ribbon vertices $P_{\text{left}}(u)$ and $P_{\text{right}}(u)$ are offset symmetrically according to profile modulation function $W(u)$:
+and the left and right ribbon boundaries are offset symmetrically by a width profile $W(u)$:
 \begin{equation}
-P_{\pm}(u) = \gamma(u) \pm \frac{W(u)}{2} \mathbf{n}(u)
+\mathbf{P}_{\pm}(u) = \boldsymbol{\gamma}(u) \pm \frac{W(u)}{2}\, \mathbf{n}(u)
 \end{equation}
-Supported width profiles include linear tapers ($W_{\text{taper}}(u) = W_0 \cdot \sin(\pi u)$), flaring ends, central bulges, and calligraphic angle projections ($W_{\text{callig}}(u) = W_0 \cdot |\cos(\theta(u) - \phi_{\text{pen}})|$).
+Supported profiles include symmetric tapers, $W_{\text{taper}}(u) = W_0 \sin(\pi u)$, flared ends, central bulges, and calligraphic nib projections, $W_{\text{cal}}(u) = W_0 \,\lvert\cos(\theta(u) - \phi_{\text{pen}})\rvert$, where $\theta(u)$ is the tangent angle and $\phi_{\text{pen}}$ the nib angle.
 
 \subsection{Prepress Spot Color Channels \& Inks Engine}
-Industrial prepress packaging and commercial screen printing require dedicated physical printing plates for custom inks (e.g. Pantone PMS, metallic gold/silver, opaque white underbase, and clear gloss varnish) that cannot be reproduced using standard 4-color process CMYK.
+Packaging prepress and commercial screen printing require dedicated physical plates for custom inks (e.g., Pantone PMS, metallic gold/silver, opaque white underbase, and clear gloss varnish) that cannot be reproduced with 4-color process CMYK.
 
-PixelForge introduces \texttt{SpotColorManager}, providing arbitrary spot channels stored as dedicated 8-bit density rasters:
+PixelForge introduces \texttt{SpotColorManager}, which stores each spot channel as a dedicated 8-bit density raster
 \begin{equation}
 D_{\text{spot}}(x, y) \in [0, 255]
 \end{equation}
-where $255$ denotes $100\%$ ink coverage. On-screen multi-spectral compositing simulates subtractive ink coverage and solidity $\sigma \in [0, 1]$:
-\begin{equation}
-C_{\text{composite}} = C_{\text{base}} \cdot (1 - \alpha_{\text{ink}}) + C_{\text{tint}} \cdot \alpha_{\text{ink}}, \quad \alpha_{\text{ink}} = \sigma \cdot \frac{D_{\text{spot}}}{255}
-\end{equation}
-During prepress export, spot channels generate independent high-contrast film separation negatives/positives, fully completing commercial print production workflows.
+where 255 denotes 100\% ink coverage. On screen, each ink is previewed by blending its tint over the composite according to coverage and ink solidity $\sigma \in [0, 1]$:
+\begin{align}
+\alpha_{\text{ink}} &= \sigma \cdot \frac{D_{\text{spot}}}{255} \\
+C_{\text{comp}} &= (1 - \alpha_{\text{ink}})\, C_{\text{base}} + \alpha_{\text{ink}}\, C_{\text{tint}}
+\end{align}
+During prepress export, each spot channel produces an independent high-contrast film separation (negative or positive) alongside the CMYK plates.
 
-\subsection{Infinite Seamless Toroidal Canvas Wrap-Around Mode}
-Texture artists, game asset creators, and surface pattern designers require seamless visual repetition without boundary discontinuity. PixelForge introduces \texttt{WrapAroundEngine}, providing infinite toroidal canvas wrapping (Krita parity, activated via \texttt{Shift+W}). The viewport dynamically projects the document across an affine 9-quadrant lattice:
+\subsection{Seamless Toroidal Wrap-Around Canvas}
+Texture artists, game asset creators, and surface pattern designers require seamless repetition without boundary discontinuities. PixelForge introduces \texttt{WrapAroundEngine}, a toroidal canvas wrap mode (Krita parity, toggled via \texttt{Shift+W}). For a $W \times H$ document, the viewport renders the document across a $3 \times 3$ tile lattice:
 \begin{equation}
-\mathcal{T}_{i, j}(x, y) = (x + i \cdot W, \, y + j \cdot H), \quad i, j \in \{-1, 0, 1\}
+\mathcal{T}_{i,j}(x, y) = (x + iW,\ y + jH), \qquad i, j \in \{-1, 0, 1\}
 \end{equation}
-Pointer interaction coordinates are wrapped toroidally onto the active document domain:
-\begin{equation}
-x_{\text{doc}} = ((x_{\text{mouse}} \bmod W) + W) \bmod W, \quad y_{\text{doc}} = ((y_{\text{mouse}} \bmod H) + H) \bmod H
-\end{equation}
-During raster brush stamping, any dab with radius $r$ touching or crossing border boundaries generates offset dabs across opposite borders $\Delta x \in \{-W, 0, W\}, \Delta y \in \{-H, 0, H\}$, producing seamless tileable textures in real time with zero seam distortion.
+Pointer coordinates are wrapped onto the document domain (the double modulo handles negative inputs):
+\begin{align}
+x_{\text{doc}} &= \big((x_{\text{ptr}} \bmod W) + W\big) \bmod W \\
+y_{\text{doc}} &= \big((y_{\text{ptr}} \bmod H) + H\big) \bmod H
+\end{align}
+During raster brush stamping, any dab of radius $r$ that crosses a document border is replicated at the offsets $\Delta x \in \{-W, 0, W\}$ and $\Delta y \in \{-H, 0, H\}$, producing tileable textures in real time without visible seams.
 
-\subsection{Animation Timeline Onion Skinning \& Temporal Interpolation}
-For frame-by-frame 2D animation and dynamic GIF production, animators require temporal context of adjacent frames while illustrating keyframes. PixelForge's \texttt{TimelineManager} implements real-time non-destructive onion skinning. For an active frame $k$, neighboring frames $k + \delta$ ($\delta \in [-N_{\text{prev}}, N_{\text{next}}]$) are composited onto the interactive overlay canvas with temporal color tinting and distance attenuation:
-\begin{equation}
-\alpha_{\text{skin}}(\delta) = \frac{\alpha_0}{|\delta|}, \quad C_{\text{tint}}(\delta) = 
+\subsection{Animation Timeline \& Onion Skinning}
+For frame-by-frame 2D animation and GIF production, animators need the temporal context of adjacent frames while drawing keyframes. PixelForge's \texttt{TimelineManager} implements real-time, non-destructive onion skinning. For an active frame $k$, neighboring frames $k + \delta$, with $\delta \in \{-N_{\text{prev}}, \dots, -1\} \cup \{1, \dots, N_{\text{next}}\}$, are composited onto an overlay canvas with temporal tinting and distance-attenuated opacity:
+\begin{align}
+\alpha_{\text{skin}}(\delta) &= \frac{\alpha_0}{\lvert\delta\rvert} \\
+C_{\text{tint}}(\delta) &=
 \begin{cases}
-\text{RGB}_{\text{red}} (\#\text{ef4444}), & \delta < 0 \text{ (Past)} \\
-\text{RGB}_{\text{green}} (\#\text{22c55e}), & \delta > 0 \text{ (Future)}
+\text{red } (\texttt{\#ef4444}), & \delta < 0 \ \text{(past)} \\
+\text{green } (\texttt{\#22c55e}), & \delta > 0 \ \text{(future)}
 \end{cases}
-\end{equation}
-Colorization is performed via \texttt{source-in} alpha blending, ensuring the animator clearly perceives trajectory motion without modifying underlying layer states. The timeline exports directly to animated GIF89a via pure JavaScript NeuQuant quantization and LZW variable-length compression.
+\end{align}
+Tinting uses \texttt{source-in} compositing, so motion trajectories are visible without modifying the underlying layers. The timeline exports animated GIF89a files through a pure JavaScript NeuQuant color quantizer and variable-length LZW encoder.
 
-\subsection{3D LUT Tetrahedral Simplex Decomposition Engine}
-High-end cinematic color grading relies on 3D lookup tables (\texttt{.cube}) to remap input RGB triples. Conventional trilinear interpolation subdivides the 3D unit cube into rectangular sub-cells, introducing diagonal chromatic banding, posterization, and saddle-point distortions in deep shadow gradients.
+\subsection{3D LUT Tetrahedral Interpolation Engine}
+Cinematic color grading relies on 3D lookup tables (\texttt{.cube}) to remap input RGB triples. Conventional trilinear interpolation blends all eight corners of each lattice cell, which can introduce hue shifts along the neutral axis and diagonal banding in smooth shadow gradients.
 
-PixelForge implements high-precision tetrahedral simplex decomposition in \texttt{LutEngine}. Each sub-cube is partitioned along its main diagonal into 6 disjoint tetrahedra. For normalized coordinates $(dr, dg, db) \in [0, 1]^3$, the active tetrahedron is selected based on channel ordering (e.g., $dr \ge dg \ge db$). The interpolated color is computed from exactly 4 lattice vertices:
+PixelForge implements tetrahedral interpolation in \texttt{LutEngine}. Each lattice cell is partitioned along its main (neutral) diagonal into six disjoint tetrahedra. For fractional in-cell coordinates $(d_r, d_g, d_b) \in [0, 1]^3$, the active tetrahedron is selected by channel ordering; for the case $d_r \ge d_g \ge d_b$, the output uses exactly four lattice vertices:
 \begin{equation}
-C_{\text{out}} = w_0 P_{000} + w_1 P_{100} + w_2 P_{110} + w_3 P_{111}
+\begin{aligned}
+C_{\text{out}} ={}& (1 - d_r)\, P_{000} + (d_r - d_g)\, P_{100} \\
+&+ (d_g - d_b)\, P_{110} + d_b\, P_{111}
+\end{aligned}
 \end{equation}
-where weights $w_0 = 1 - dr, w_1 = dr - dg, w_2 = dg - db, w_3 = db$ satisfy $\sum_{i=0}^3 w_i = 1$. By interpolating strictly along simplex boundaries, tetrahedral mode completely eliminates cross-channel interpolation crosstalk.
+The weights are non-negative and sum to 1, and the remaining five cases follow by permuting the channels. Because every tetrahedron contains the cell diagonal, neutral inputs are interpolated exactly along the gray axis, which suppresses the cross-channel banding seen with trilinear lookup.
 
 % ══════════════════════════════════════════════════════════════════
 % EMPIRICAL VERIFICATION & BLACK BOX AUDIT
 % ══════════════════════════════════════════════════════════════════
 \section{Empirical Verification \& Audit Results}
-PixelForge Studio employs an automated verification harness executing 48 independent test suites covering every component in a black-box environment.
+PixelForge Studio employs an automated verification harness executing 48 independent test suites covering every major component (Table~\ref{tab:test_summary}).
 
 \subsection{Black-Box Interactive Component Audit}
 To eliminate regressions across tool interactions, coordinate transformations, and menu routing, \texttt{test-blackbox-components-audit.js} executes automated synthetic DOM dispatch cycles across the entire user interface:
 
 \begin{itemize}
-    \item \textbf{Interactive Toolbar Tools}: 49 / 49 tools successfully cycled through \texttt{pointerdown}, \texttt{pointermove}, and \texttt{pointerup} events with 0 exceptions.
-    \item \textbf{Free Transform Engine}: Evaluated across 8 scaling handles, rotation, and aspect ratio locking without box collapse.
-    \item \textbf{Menu Action Routing}: 176 / 176 menu actions successfully verified in \texttt{handleMenuAction} without unhandled cases.
-    \item \textbf{Modal Dialogs}: 61 / 61 modals audited for proper structural hierarchy, cancel/commit bindings, and escape-key handling.
+    \item \textbf{Interactive Toolbar Tools}: 49/49 tools successfully cycled through \texttt{pointerdown}, \texttt{pointermove}, and \texttt{pointerup} events with zero exceptions.
+    \item \textbf{Free Transform Engine}: Evaluated across 8 scaling handles, rotation, and aspect-ratio locking without bounding-box collapse.
+    \item \textbf{Menu Action Routing}: 176/176 menu actions verified in \texttt{handleMenuAction} with no unhandled cases.
+    \item \textbf{Modal Dialogs}: 61/61 modals audited for structural hierarchy, cancel/commit bindings, and Escape-key handling.
 \end{itemize}
 
-\begin{table}[!h]
+\begin{table}[!t]
 \centering
 \caption{Automated Verification Suite Execution Summary}
 \label{tab:test_summary}
 \footnotesize
-\begin{tabular}{lccc}
+\begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}Xccc@{}}
 \toprule
-\textbf{Test Category} & \textbf{Suites} & \textbf{Checks} & \textbf{Pass Rate} \\
+\textbf{Test Category} & \textbf{Suites} & \textbf{Checks} & \textbf{Pass} \\
 \midrule
 Core Layer Architecture \& Blending & 6 & 112 & 100\% \\
 Color Management \& ICC Profiling & 4 & 78 & 100\% \\
@@ -470,36 +478,35 @@ Adobe Preset Importers (\texttt{.abr}, \texttt{.ase}, \texttt{.aco}) & 1 & 24 & 
 Multi-Document Tabbed Management & 1 & 18 & 100\% \\
 WebGPU Compute Acceleration & 1 & 15 & 100\% \\
 Lens Profiles, Variable Strokes \& Spot Inks & 1 & 21 & 100\% \\
-Frontiers: Wrap-Around, Onion Skin \& 3D LUT & 1 & 14 & 100\% \\
-Black-Box Component Discovery Audit & 1 & 285 & 100\% \\
+Wrap-Around, Onion Skin \& 3D LUT & 1 & 14 & 100\% \\
+Black-Box Component Discovery Audit & 1 & 286 & 100\% \\
 General Retouching \& Neural Filters & 21 & 312 & 100\% \\
 \midrule
-\textbf{Total Verification Footprint} & \textbf{48} & \textbf{1,181} & \textbf{100.0\%} \\
+\textbf{Total Verification Footprint} & \textbf{48} & \textbf{1,082} & \textbf{100\%} \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \subsection{Continuous Integration \& Cross-Platform Deployment}
-Automated cross-platform delivery is orchestrated via GitHub Actions (\texttt{.github/workflows/build-release.yml}). On tag dispatch, an automated matrix runs \texttt{npm test} on both Ubuntu Linux and Windows runners across Node.js 20.x and 22.x. Upon passing, Electron Builder packages:
+Automated cross-platform delivery is orchestrated via GitHub Actions (\texttt{.github/workflows/build-release.yml}). On tag dispatch, a build matrix runs \texttt{npm test} on both Ubuntu Linux and Windows runners across Node.js 20.x and 22.x. Upon passing, Electron Builder packages:
 \begin{itemize}
-    \item \textbf{Windows}: NSIS Interactive Installer and Portable standalone executable (\texttt{.exe}).
-    \item \textbf{Linux}: Desktop AppImage, Debian package (\texttt{.deb}), and standalone compressed archive (\texttt{.tar.gz}).
+    \item \textbf{Windows}: NSIS interactive installer and portable standalone executable (\texttt{.exe}).
+    \item \textbf{Linux}: AppImage, Debian package (\texttt{.deb}), and compressed archive (\texttt{.tar.gz}).
 \end{itemize}
 SHA-256 release checksums are computed automatically and attached to GitHub Release tags.
 
 \section{Conclusion}
-PixelForge Studio demonstrates that full parity with legacy proprietary digital imaging software is achievable within a zero-dependency, open-source architecture. By combining hardware-accelerated compute shaders (WebGPU/WebGL2), 64-bit binary stream processing, analytical 2D constructive solid geometry, and strict prepress separation fidelity, PixelForge delivers a free, platform-agnostic alternative suitable for commercial graphic design, photo retouching, and VFX pipelines.
+PixelForge Studio demonstrates that broad feature parity with proprietary digital imaging software is achievable within a zero-dependency, open-source architecture. By combining hardware-accelerated compute shaders (WebGPU/WebGL2), 64-bit binary stream processing, analytical 2D constructive solid geometry, and strict prepress separation fidelity, PixelForge delivers a free, platform-agnostic alternative suitable for commercial graphic design, photo retouching, and VFX pipelines.
 
-\bibliographystyle{IEEEtran}
-\begin{thebibliography}{1}
+\begin{thebibliography}{9}
 \bibitem{greiner1998}
-G.~Greiner and K.~Hormann, ``Efficient clipping of arbitrary polygons,'' \emph{ACM Transactions on Graphics (TOG)}, vol.~17, no.~2, pp.~71--83, 1998.
+G.~Greiner and K.~Hormann, ``Efficient clipping of arbitrary polygons,'' \emph{ACM Transactions on Graphics}, vol.~17, no.~2, pp.~71--83, 1998.
 
 \bibitem{malvar2004}
-H.~S. Malvar, L.-W. He, and R.~Cutler, ``High-quality linear interpolation for demosaicing of Bayer-patterned color images,'' in \emph{IEEE International Conference on Acoustics, Speech, and Signal Processing (ICASSP)}, vol.~3, 2004, pp. iii--485.
+H.~S. Malvar, L.-W. He, and R.~Cutler, ``High-quality linear interpolation for demosaicing of Bayer-patterned color images,'' in \emph{Proc. IEEE Int. Conf. Acoustics, Speech, and Signal Processing (ICASSP)}, vol.~3, 2004, pp.~iii-485--iii-488.
 
-\bibitem{opencolorio}
-J.~G. Friedman \emph{et~al.}, ``OpenColorIO: An open-source color management solution for visual effects,'' in \emph{ACM SIGGRAPH Courses}, 2012.
+\bibitem{narkowicz2016}
+K.~Narkowicz, ``ACES filmic tone mapping curve,'' 2016. [Online]. Available: \url{https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/}
 
 \bibitem{adobe2020psd}
 Adobe Systems Incorporated, ``Adobe Photoshop File Formats Specification,'' Tech. Rep., 2020.
