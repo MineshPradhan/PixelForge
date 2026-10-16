@@ -1794,6 +1794,10 @@ class PixelForgeApp {
       case 'resize-canvas':
         this.showModal('modal-resize-canvas');
         break;
+      case 'resize-image':
+      case 'scale-layer':
+        this.openLayerScaleModal();
+        break;
       case 'rotate-cw':
         this.rotateImage(true);
         break;
@@ -1985,8 +1989,7 @@ class PixelForgeApp {
         this.applyFilter('sharpen');
         break;
       case 'filter-unsharp-mask':
-        this.startFilterPreview();
-        this.showModal('modal-unsharp-mask');
+        this.openAdjustmentInspector('unsharp-mask');
         break;
       case 'filter-grayscale':
         this.applyFilter('grayscale');
@@ -3897,6 +3900,61 @@ class PixelForgeApp {
 
         s.oninput = liveUpdateFn;
         n.oninput = () => { s.value = Math.max(1, Math.min(100, parseInt(n.value, 10) || 5)); liveUpdateFn(); };
+        break;
+      }
+
+      case 'unsharp-mask': {
+        defaultParams = { amount: 50, radius: 2, threshold: 0 };
+        currentParams = Object.assign({}, defaultParams, initialParams || {});
+
+        bodyEl.innerHTML = `
+          <div class="adj-control-row">
+            <div class="adj-control-header">
+              <strong>Amount:</strong>
+              <span class="adj-val-badge" id="val-adj-usm-amt">${currentParams.amount}%</span>
+            </div>
+            <div class="adj-slider-row">
+              <input type="range" id="slider-adj-usm-amt" min="1" max="500" value="${currentParams.amount}">
+              <input type="number" id="num-adj-usm-amt" class="adj-num-input" min="1" max="500" value="${currentParams.amount}">
+            </div>
+          </div>
+          <div class="adj-control-row">
+            <div class="adj-control-header">
+              <strong>Radius:</strong>
+              <span class="adj-val-badge" id="val-adj-usm-rad">${currentParams.radius} px</span>
+            </div>
+            <div class="adj-slider-row">
+              <input type="range" id="slider-adj-usm-rad" min="1" max="50" value="${currentParams.radius}">
+              <input type="number" id="num-adj-usm-rad" class="adj-num-input" min="1" max="50" value="${currentParams.radius}">
+            </div>
+          </div>
+        `;
+
+        const sAmt = document.getElementById('slider-adj-usm-amt');
+        const nAmt = document.getElementById('num-adj-usm-amt');
+        const vAmt = document.getElementById('val-adj-usm-amt');
+        const sRad = document.getElementById('slider-adj-usm-rad');
+        const nRad = document.getElementById('num-adj-usm-rad');
+        const vRad = document.getElementById('val-adj-usm-rad');
+
+        liveUpdateFn = () => {
+          const amt = parseInt(sAmt.value, 10) || 50;
+          const rad = parseInt(sRad.value, 10) || 2;
+          currentParams.amount = amt;
+          currentParams.radius = rad;
+          vAmt.textContent = amt + '%';
+          nAmt.value = amt;
+          vRad.textContent = rad + ' px';
+          nRad.value = rad;
+
+          if (chkLivePreview && !chkLivePreview.checked) return;
+          this.applyFilterPreview((imgData) => Filters.unsharpMask(imgData, amt, rad, 0));
+        };
+
+        sAmt.oninput = liveUpdateFn;
+        nAmt.oninput = () => { sAmt.value = Math.max(1, Math.min(500, parseInt(nAmt.value, 10) || 50)); liveUpdateFn(); };
+        sRad.oninput = liveUpdateFn;
+        nRad.oninput = () => { sRad.value = Math.max(1, Math.min(50, parseInt(nRad.value, 10) || 2)); liveUpdateFn(); };
         break;
       }
 

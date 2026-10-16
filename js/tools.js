@@ -2603,12 +2603,13 @@ class ToolManager {
       return;
     }
 
+    const box = res.bounds || res.bbox || { minX: x, minY: y, maxX: x, maxY: y };
     this.selection = {
       type: 'rect',
-      x: res.bbox.minX,
-      y: res.bbox.minY,
-      w: res.bbox.maxX - res.bbox.minX + 1,
-      h: res.bbox.maxY - res.bbox.minY + 1,
+      x: box.minX,
+      y: box.minY,
+      w: box.maxX - box.minX + 1,
+      h: box.maxY - box.minY + 1,
       mask: res.mask
     };
 
@@ -3661,85 +3662,109 @@ class ToolManager {
     const localDx = cos * totalDx - sin * totalDy;
     const localDy = sin * totalDx + cos * totalDy;
 
-    const startW = ds.boxW;
-    const startH = ds.boxH;
-    const minSize = 10;
-
-    let dLeft = 0;
-    let dRight = 0;
-    let dTop = 0;
-    let dBottom = 0;
-
-    switch (this.activeHandle) {
-      case 'br':
-        dRight = localDx;
-        dBottom = localDy;
-        break;
-      case 'tl':
-        dLeft = -localDx;
-        dTop = -localDy;
-        break;
-      case 'tr':
-        dRight = localDx;
-        dTop = -localDy;
-        break;
-      case 'bl':
-        dLeft = -localDx;
-        dBottom = localDy;
-        break;
-      case 'mr':
-        dRight = localDx;
-        break;
-      case 'ml':
-        dLeft = -localDx;
-        break;
-      case 'bm':
-        dBottom = localDy;
-        break;
-      case 'tm':
-        dTop = -localDy;
-        break;
-    }
-
-    let newW = Math.max(minSize, startW + dLeft + dRight);
-    let newH = Math.max(minSize, startH + dTop + dBottom);
+    const startW = Math.max(1, ds.boxW);
+    const startH = Math.max(1, ds.boxH);
+    const minSize = 20;
+    const minScale = Math.max(minSize / startW, minSize / startH);
+    const diagSq = Math.max(1, startW * startW + startH * startH);
 
     const isCorner = ['tl', 'tr', 'bl', 'br'].includes(this.activeHandle);
     // Photoshop parity: corner handle drags maintain aspect ratio, unless holding Alt for freeform
     const keepAspect = e.shiftKey || (isCorner && !e.altKey);
 
-    if (keepAspect && startW > 0 && startH > 0) {
-      const scaleW = newW / startW;
-      const scaleH = newH / startH;
-      const scale = Math.abs(scaleW - 1) >= Math.abs(scaleH - 1) ? scaleW : scaleH;
-      newW = Math.max(minSize, Math.round(startW * scale));
-      newH = Math.max(minSize, Math.round(startH * scale));
-    }
-
-    // Compute center shift based on fixed anchor opposite to handle
+    let newW = startW;
+    let newH = startH;
     let localShiftX = 0;
     let localShiftY = 0;
 
-    if (this.activeHandle === 'br') {
-      localShiftX = (newW - startW) / 2;
-      localShiftY = (newH - startH) / 2;
-    } else if (this.activeHandle === 'tl') {
-      localShiftX = -(newW - startW) / 2;
-      localShiftY = -(newH - startH) / 2;
-    } else if (this.activeHandle === 'tr') {
-      localShiftX = (newW - startW) / 2;
-      localShiftY = -(newH - startH) / 2;
-    } else if (this.activeHandle === 'bl') {
-      localShiftX = -(newW - startW) / 2;
-      localShiftY = (newH - startH) / 2;
-    } else if (this.activeHandle === 'mr') {
-      localShiftX = (newW - startW) / 2;
-    } else if (this.activeHandle === 'ml') {
-      localShiftX = -(newW - startW) / 2;
-    } else if (this.activeHandle === 'bm') {
-      localShiftY = (newH - startH) / 2;
-    } else if (this.activeHandle === 'tm') {
-      localShiftY = -(newH - startH) / 2;
+    if (isCorner && keepAspect) {
+      let scale = 1.0;
+      if (this.activeHandle === 'br') {
+        scale = ((startW + localDx) * startW + (startH + localDy) * startH) / diagSq;
+        scale = Math.max(minScale, scale);
+        newW = Math.round(startW * scale);
+        newH = Math.round(startH * scale);
+        localShiftX = (newW - startW) / 2;
+        localShiftY = (newH - startH) / 2;
+      } else if (this.activeHandle === 'tl') {
+        scale = ((startW - localDx) * startW + (startH - localDy) * startH) / diagSq;
+        scale = Math.max(minScale, scale);
+        newW = Math.round(startW * scale);
+        newH = Math.round(startH * scale);
+        localShiftX = -(newW - startW) / 2;
+        localShiftY = -(newH - startH) / 2;
+      } else if (this.activeHandle === 'tr') {
+        scale = ((startW + localDx) * startW + (startH - localDy) * startH) / diagSq;
+        scale = Math.max(minScale, scale);
+        newW = Math.round(startW * scale);
+        newH = Math.round(startH * scale);
+        localShiftX = (newW - startW) / 2;
+        localShiftY = -(newH - startH) / 2;
+      } else if (this.activeHandle === 'bl') {
+        scale = ((startW - localDx) * startW + (startH + localDy) * startH) / diagSq;
+        scale = Math.max(minScale, scale);
+        newW = Math.round(startW * scale);
+        newH = Math.round(startH * scale);
+        localShiftX = -(newW - startW) / 2;
+        localShiftY = (newH - startH) / 2;
+      }
+    } else if (isCorner && !keepAspect) {
+      if (this.activeHandle === 'br') {
+        newW = Math.max(minSize, startW + localDx);
+        newH = Math.max(minSize, startH + localDy);
+        localShiftX = (newW - startW) / 2;
+        localShiftY = (newH - startH) / 2;
+      } else if (this.activeHandle === 'tl') {
+        newW = Math.max(minSize, startW - localDx);
+        newH = Math.max(minSize, startH - localDy);
+        localShiftX = -(newW - startW) / 2;
+        localShiftY = -(newH - startH) / 2;
+      } else if (this.activeHandle === 'tr') {
+        newW = Math.max(minSize, startW + localDx);
+        newH = Math.max(minSize, startH - localDy);
+        localShiftX = (newW - startW) / 2;
+        localShiftY = -(newH - startH) / 2;
+      } else if (this.activeHandle === 'bl') {
+        newW = Math.max(minSize, startW - localDx);
+        newH = Math.max(minSize, startH + localDy);
+        localShiftX = -(newW - startW) / 2;
+        localShiftY = (newH - startH) / 2;
+      }
+    } else {
+      // Side handles (mr, ml, tm, bm)
+      if (this.activeHandle === 'mr') {
+        newW = Math.max(minSize, startW + localDx);
+        if (e.shiftKey) {
+          const scale = Math.max(minScale, newW / startW);
+          newW = Math.round(startW * scale);
+          newH = Math.round(startH * scale);
+        }
+        localShiftX = (newW - startW) / 2;
+      } else if (this.activeHandle === 'ml') {
+        newW = Math.max(minSize, startW - localDx);
+        if (e.shiftKey) {
+          const scale = Math.max(minScale, newW / startW);
+          newW = Math.round(startW * scale);
+          newH = Math.round(startH * scale);
+        }
+        localShiftX = -(newW - startW) / 2;
+      } else if (this.activeHandle === 'bm') {
+        newH = Math.max(minSize, startH + localDy);
+        if (e.shiftKey) {
+          const scale = Math.max(minScale, newH / startH);
+          newW = Math.round(startW * scale);
+          newH = Math.round(startH * scale);
+        }
+        localShiftY = (newH - startH) / 2;
+      } else if (this.activeHandle === 'tm') {
+        newH = Math.max(minSize, startH - localDy);
+        if (e.shiftKey) {
+          const scale = Math.max(minScale, newH / startH);
+          newW = Math.round(startW * scale);
+          newH = Math.round(startH * scale);
+        }
+        localShiftY = -(newH - startH) / 2;
+      }
     }
 
     // Rotate local center shift back into world space

@@ -2,7 +2,7 @@
 // PixelForge Studio — Filters & Adjustments Suite
 // ══════════════════════════════════════════════════════════════════════
 
-window.Filters = {
+const Filters = {
   brightnessContrast(imgData, brightness = 0, contrast = 0) {
     const w = imgData.width;
     const h = imgData.height;
@@ -1255,8 +1255,14 @@ window.Filters = {
   }
 };
 
+if (typeof window !== 'undefined') {
+  window.Filters = Filters;
+}
+if (typeof global !== 'undefined') {
+  global.Filters = Filters;
+}
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = window.Filters;
-  module.exports.Filters = window.Filters;
+  module.exports = Filters;
+  module.exports.Filters = Filters;
 }
 

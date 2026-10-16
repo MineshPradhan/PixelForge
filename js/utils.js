@@ -2,7 +2,7 @@
 // PixelForge Studio — Core Utility Functions
 // ══════════════════════════════════════════════════════════════════════
 
-window.Utils = {
+const Utils = {
   clamp(val, min, max) {
     return Math.max(min, Math.min(max, val));
   },
@@ -336,9 +336,11 @@ window.Utils = {
     }
 
     if (selectedCount === 0) return null;
+    const bounds = { minX, minY, maxX, maxY, w: maxX - minX + 1, h: maxY - minY + 1 };
     return {
       mask,
-      bounds: { minX, minY, maxX, maxY, w: maxX - minX + 1, h: maxY - minY + 1 },
+      bounds,
+      bbox: bounds,
       count: selectedCount
     };
   },
@@ -381,6 +383,12 @@ window.Utils = {
   }
 };
 
+if (typeof window !== 'undefined') {
+  window.Utils = Utils;
+}
+if (typeof global !== 'undefined') {
+  global.Utils = Utils;
+}
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = window.Utils;
+  module.exports = Utils;
 }

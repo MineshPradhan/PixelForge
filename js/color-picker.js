@@ -149,6 +149,7 @@ class ColorPickerManager {
   }
 
   renderHueStrip() {
+    if (!this.hueCanvas || !this.hueCtx) return;
     const w = this.hueCanvas.width;
     const h = this.hueCanvas.height;
     const grad = this.hueCtx.createLinearGradient(0, 0, w, 0);
@@ -160,6 +161,7 @@ class ColorPickerManager {
   }
 
   renderSatValBox() {
+    if (!this.satValCanvas || !this.satValCtx) return;
     const w = this.satValCanvas.width;
     const h = this.satValCanvas.height;
     const ctx = this.satValCtx;
@@ -183,12 +185,13 @@ class ColorPickerManager {
   }
 
   updateCursorPositions() {
-    const w = this.satValCanvas.offsetWidth;
-    const h = this.satValCanvas.offsetHeight;
+    if (!this.satValCanvas || !this.satValCursor || !this.hueCanvas || !this.hueCursor) return;
+    const w = this.satValCanvas.offsetWidth || this.satValCanvas.width || 100;
+    const h = this.satValCanvas.offsetHeight || this.satValCanvas.height || 100;
     this.satValCursor.style.left = (this.satValPos.x * w) + 'px';
     this.satValCursor.style.top = (this.satValPos.y * h) + 'px';
 
-    const hueW = this.hueCanvas.offsetWidth;
+    const hueW = this.hueCanvas.offsetWidth || this.hueCanvas.width || 100;
     this.hueCursor.style.left = ((this.currentHue / 360) * hueW) + 'px';
   }
 
@@ -250,6 +253,14 @@ class ColorPickerManager {
     return this.isEditingFg ? this.fgColor : this.bgColor;
   }
 
+  getFgHex() {
+    return Utils.rgbToHex(this.fgColor.r, this.fgColor.g, this.fgColor.b);
+  }
+
+  getBgHex() {
+    return Utils.rgbToHex(this.bgColor.r, this.bgColor.g, this.bgColor.b);
+  }
+
   getFgCss() {
     return `rgb(${this.fgColor.r}, ${this.fgColor.g}, ${this.fgColor.b})`;
   }
@@ -259,17 +270,25 @@ class ColorPickerManager {
   }
 
   updateUI() {
-    this.fgSwatch.style.background = this.getFgCss();
-    this.bgSwatch.style.background = this.getBgCss();
+    if (this.fgSwatch) this.fgSwatch.style.background = this.getFgCss();
+    if (this.bgSwatch) this.bgSwatch.style.background = this.getBgCss();
 
     const active = this.getActiveColor();
-    this.hexInput.value = Utils.rgbToHex(active.r, active.g, active.b);
-    this.rInput.value = active.r;
-    this.gInput.value = active.g;
-    this.bInput.value = active.b;
+    if (this.hexInput) this.hexInput.value = Utils.rgbToHex(active.r, active.g, active.b);
+    if (this.rInput) this.rInput.value = active.r;
+    if (this.gInput) this.gInput.value = active.g;
+    if (this.bInput) this.bInput.value = active.b;
 
     this.updateCursorPositions();
   }
 }
 
-window.ColorPickerManager = ColorPickerManager;
+if (typeof window !== 'undefined') {
+  window.ColorPickerManager = ColorPickerManager;
+}
+if (typeof global !== 'undefined') {
+  global.ColorPickerManager = ColorPickerManager;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = ColorPickerManager;
+}
