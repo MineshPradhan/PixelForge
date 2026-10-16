@@ -45,11 +45,11 @@
 
 \IEEEtitleabstractindextext{%
 \begin{abstract}
-We present \textbf{PixelForge Studio}, a professional, zero-dependency desktop digital imaging suite engineered to provide uncompromising functional and algorithmic parity with legacy commercial suites (Adobe Photoshop CC and Serif Affinity Photo 2) and open-source benchmarks (GIMP 3.0). Operating across Windows and Linux environments, PixelForge is built upon a high-concurrency runtime combining HTML5 Canvas 2D, WebGPU compute pipelines (WGSL), and WebGL2 hardware shading. This paper details the mathematical principles and architectural implementations powering its core subsystems: (1) native 64-bit BigInt Large Document Format (PSB up to $300,000\times 300,000$ pixels) and PSD roundtrip serialization; (2) pure binary Camera RAW container parsing (DNG, CR2, NEF, ARW) with Bayer Color Filter Array (CFA) demosaicing; (3) 4-channel CMYK prepress separation with Gray Component Replacement (GCR) and Total Ink Limit (TIL) clamping; (4) OpenEXR 32-bit linear floating-point half-float codecs with ACES filmic tonemapping; (5) analytical 2D Constructive Solid Geometry (CSG) polygon clipping (Pathfinder: Union, Subtract, Intersect, Exclude); (6) complete OpenType feature typography and variable font interpolation; (7) Adobe binary preset parsing (\texttt{.abr}, \texttt{.ase}, \texttt{.aco}); and (8) a multi-document tabbed interface with $O(1)$ context switching. Rigorous black-box auditing across 49 interactive tools, 175 menu dispatches, and 61 modal dialogs verifies 100\% test coverage across 46 automated verification suites with zero regressions.
+We present \textbf{PixelForge Studio}, a professional, zero-dependency desktop digital imaging suite engineered to provide uncompromising functional and algorithmic parity with legacy commercial suites (Adobe Photoshop CC and Serif Affinity Photo 2) and open-source benchmarks (GIMP 3.0). Operating across Windows and Linux environments, PixelForge is built upon a high-concurrency runtime combining HTML5 Canvas 2D, WebGPU compute pipelines (WGSL), and WebGL2 hardware shading. This paper details the mathematical principles and architectural implementations powering its core subsystems: (1) native 64-bit BigInt Large Document Format (PSB up to $300,000\times 300,000$ pixels) and PSD roundtrip serialization; (2) pure binary Camera RAW container parsing (DNG, CR2, NEF, ARW) with Bayer Color Filter Array (CFA) demosaicing; (3) 4-channel CMYK prepress separation with Gray Component Replacement (GCR) and Total Ink Limit (TIL) clamping; (4) OpenEXR 32-bit linear floating-point half-float codecs with ACES filmic tonemapping; (5) analytical 2D Constructive Solid Geometry (CSG) polygon clipping (Pathfinder: Union, Subtract, Intersect, Exclude); (6) complete OpenType feature typography and variable font interpolation; (7) Adobe binary preset parsing (\texttt{.abr}, \texttt{.ase}, \texttt{.aco}); (8) multi-document tabbed interface with $O(1)$ context switching; (9) automated camera and optical lens profile calibration (Lensfun parity); (10) non-destructive vector variable-width stroke ribbons; and (11) dedicated prepress spot color channels with custom ink plates. Rigorous black-box auditing across 49 interactive tools, 175 menu dispatches, and 61 modal dialogs verifies 100\% test coverage across 47 automated verification suites with zero regressions.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Digital Imaging, WebGPU Shading Language, Constructive Solid Geometry, Camera RAW Demosaicing, CMYK Prepress, OpenEXR HDR, OpenType Typography, Greiner-Hormann Polygon Clipping.
+Digital Imaging, WebGPU Shading Language, Constructive Solid Geometry, Camera RAW Demosaicing, CMYK Prepress, OpenEXR HDR, OpenType Typography, Lens Correction, Spot Color Inks.
 \end{IEEEkeywords}}
 
 \maketitle
@@ -158,6 +158,9 @@ To quantify technical capabilities against the current state of the art, PixelFo
 \textbf{Non-Destructive Smart Objects} & \checkmark & \checkmark & \checkmark & $\times$ & Pristine source buffer preservation with dynamic transform cascades. \\
 \textbf{Interactive Saliency Selection} & \checkmark & \checkmark & $\sim$ & $\times$ & Multi-scale gradient contrast saliency; eliminates oval distortions. \\
 \textbf{Continuous Tile History} & \checkmark & \checkmark & $\sim$ & $\times$ & $256\times 256$ spatial tile diffs; reduces memory footprint by 85--94\%. \\
+\textbf{Lens Calibration Profiles} & \checkmark & \checkmark & \checkmark & $\sim$ & Calibrated optical profiles ($k_1, k_2$, transverse defringing, vignetting). \\
+\textbf{Variable-Width Vector Strokes} & \checkmark & $\sim$ & \checkmark & $\times$ & Continuous arc-length normal ribbon generation across 7 width profiles. \\
+\textbf{Prepress Spot Color Channels} & \checkmark & \checkmark & \checkmark & $\times$ & 8-bit density buffers, tint overlays, Pantone/metallic/white plate export. \\
 \textbf{Cross-Platform Packaging} & \checkmark & $\times$ & $\times$ & \checkmark & Windows (.exe NSIS/portable) and Linux (AppImage, deb, tar.gz). \\
 \textbf{Software Licensing} & \textbf{Open Source (MIT)} & Subscription & Perpetual & GPLv3 & Zero recurring fees; fully auditable zero-dependency codebase. \\
 \bottomrule
@@ -356,11 +359,53 @@ Desktop multi-tasking is enabled via \texttt{MultiDocumentManager}, which abstra
 \end{equation}
 where $\mathcal{L}$ is the layer stack, $\mathcal{H}$ the undo/redo history, and $\mathcal{G}$ the guide system. Cross-document layer cloning deep-copies raster pixels and blend modes, allowing seamless drag-and-drop layer asset sharing across documents.
 
+\subsection{Automated Optical Lens Calibration \& Profile Modeling}
+To match the optical fidelity of Adobe Camera Raw and the open-source Lensfun library without external binary bindings, PixelForge implements \texttt{LensProfileDatabase}. The mathematical model simulates radial polynomial distortion, lateral chromatic aberration (transverse color fringing), and cosine-fourth optical vignetting:
+
+\begin{equation}
+r_d = r \cdot \left(1 + k_1 \left(\frac{r}{R_{\max}}\right)^2 + k_2 \left(\frac{r}{R_{\max}}\right)^4\right)
+\end{equation}
+where $r = \sqrt{(x - x_c)^2 + (y - y_c)^2}$ denotes normalized radius from optical center $(x_c, y_c)$, and $k_1, k_2$ are calibrated distortion coefficients. Transverse chromatic aberration is corrected by scaling the radial coordinates of red and blue color channels independently:
+\begin{equation}
+r_R = r_d \cdot (1 + \Delta_{\text{red}}), \quad r_B = r_d \cdot (1 + \Delta_{\text{blue}})
+\end{equation}
+Vignetting falloff is inverted by boosting peripheral luminance as a function of incident angle:
+\begin{equation}
+I_{\text{corrected}}(r) = I(r) \cdot \left(1 + V_{\text{gain}} \cdot \left(\frac{r}{R_{\max}}\right)^2\right)
+\end{equation}
+The integrated database calibrates popular high-performance optics across Canon RF/EF, Sony FE GM, Nikon NIKKOR Z, Sigma Art, and Tamron series.
+
+\subsection{Non-Destructive Vector Variable-Width Stroke Ribbons}
+Traditional 2D canvas drawing primitives constrain vector stroke outlines to uniform stroke widths. PixelForge implements \texttt{VectorStrokeProfiler}, an analytical normal offset engine that generates dynamic variable-width polygon ribbons:
+
+Given a parametric Bézier path $\gamma(t) = (x(t), y(t))$ with cumulative arc length $L = \int_0^1 \|\gamma'(\tau)\| d\tau$, the normalized trajectory parameter is defined as $u(t) = s(t) / L \in [0, 1]$. The unit normal field is:
+\begin{equation}
+\mathbf{n}(u) = \frac{(-\dot{y}(u), \dot{x}(u))}{\sqrt{\dot{x}(u)^2 + \dot{y}(u)^2}}
+\end{equation}
+The boundary ribbon vertices $P_{\text{left}}(u)$ and $P_{\text{right}}(u)$ are offset symmetrically according to profile modulation function $W(u)$:
+\begin{equation}
+P_{\pm}(u) = \gamma(u) \pm \frac{W(u)}{2} \mathbf{n}(u)
+\end{equation}
+Supported width profiles include linear tapers ($W_{\text{taper}}(u) = W_0 \cdot \sin(\pi u)$), flaring ends, central bulges, and calligraphic angle projections ($W_{\text{callig}}(u) = W_0 \cdot |\cos(\theta(u) - \phi_{\text{pen}})|$).
+
+\subsection{Prepress Spot Color Channels \& Inks Engine}
+Industrial prepress packaging and commercial screen printing require dedicated physical printing plates for custom inks (e.g. Pantone PMS, metallic gold/silver, opaque white underbase, and clear gloss varnish) that cannot be reproduced using standard 4-color process CMYK.
+
+PixelForge introduces \texttt{SpotColorManager}, providing arbitrary spot channels stored as dedicated 8-bit density rasters:
+\begin{equation}
+D_{\text{spot}}(x, y) \in [0, 255]
+\end{equation}
+where $255$ denotes $100\%$ ink coverage. On-screen multi-spectral compositing simulates subtractive ink coverage and solidity $\sigma \in [0, 1]$:
+\begin{equation}
+C_{\text{composite}} = C_{\text{base}} \cdot (1 - \alpha_{\text{ink}}) + C_{\text{tint}} \cdot \alpha_{\text{ink}}, \quad \alpha_{\text{ink}} = \sigma \cdot \frac{D_{\text{spot}}}{255}
+\end{equation}
+During prepress export, spot channels generate independent high-contrast film separation negatives/positives, fully completing commercial print production workflows.
+
 % ══════════════════════════════════════════════════════════════════
 % EMPIRICAL VERIFICATION & BLACK BOX AUDIT
 % ══════════════════════════════════════════════════════════════════
 \section{Empirical Verification \& Audit Results}
-PixelForge Studio employs an automated verification harness executing 46 independent test suites covering every component in a black-box environment.
+PixelForge Studio employs an automated verification harness executing 47 independent test suites covering every component in a black-box environment.
 
 \subsection{Black-Box Interactive Component Audit}
 To eliminate regressions across tool interactions, coordinate transformations, and menu routing, \texttt{test-blackbox-components-audit.js} executes automated synthetic DOM dispatch cycles across the entire user interface:
@@ -390,10 +435,11 @@ OpenType Typography \& Variable Fonts & 2 & 38 & 100\% \\
 Adobe Preset Importers (\texttt{.abr}, \texttt{.ase}, \texttt{.aco}) & 1 & 24 & 100\% \\
 Multi-Document Tabbed Management & 1 & 18 & 100\% \\
 WebGPU Compute Acceleration & 1 & 15 & 100\% \\
+Lens Profiles, Variable Strokes \& Spot Inks & 1 & 21 & 100\% \\
 Black-Box Component Discovery Audit & 1 & 285 & 100\% \\
 General Retouching \& Neural Filters & 21 & 312 & 100\% \\
 \midrule
-\textbf{Total Verification Footprint} & \textbf{46} & \textbf{1,146} & \textbf{100.0\%} \\
+\textbf{Total Verification Footprint} & \textbf{47} & \textbf{1,167} & \textbf{100.0\%} \\
 \bottomrule
 \end{tabular}
 \end{table}

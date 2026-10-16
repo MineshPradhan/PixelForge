@@ -1319,7 +1319,16 @@ class PathManager {
     return null;
   }
 
-  strokePath(ctx, strokeStyle = '#ffffff', lineWidth = 2, dash = [], lineCap = 'round', lineJoin = 'round', align = 'center') {
+  strokePath(ctx, strokeStyle = '#ffffff', lineWidth = 2, dash = [], lineCap = 'round', lineJoin = 'round', align = 'center', profile = 'uniform') {
+    if (typeof VectorStrokeProfiler !== 'undefined' && profile && profile !== 'uniform') {
+      const activeSp = this.getActiveSubpath() || (this.subpaths.length > 0 ? this.subpaths[0] : null);
+      if (activeSp && activeSp.points && activeSp.points.length >= 2) {
+        const polyPts = activeSp.points.map(p => ({ x: p.x, y: p.y }));
+        VectorStrokeProfiler.renderVariableStroke(ctx, polyPts, lineWidth, profile, strokeStyle, activeSp.closed);
+        return;
+      }
+    }
+
     ctx.save();
     ctx.strokeStyle = strokeStyle;
     ctx.lineWidth = lineWidth;

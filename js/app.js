@@ -8516,6 +8516,37 @@ class PixelForgeApp {
       };
     }
 
+    const btnNewSpot = document.getElementById('btn-chan-new-spot');
+    if (btnNewSpot) {
+      btnNewSpot.onclick = () => {
+        const spotName = prompt('Spot Ink Name (e.g. PANTONE 185 C, Metallic Gold):', 'PANTONE Warm Red C');
+        if (!spotName) return;
+        const spotHex = prompt('Preview Tint Hex Color (#rrggbb):', '#f83a22') || '#f83a22';
+        if (typeof SpotColorManager !== 'undefined') {
+          if (!this.spotColorManager) this.spotColorManager = new SpotColorManager(this);
+          const spot = this.spotColorManager.createSpotChannel(spotName, spotHex, 0.9);
+          if (this.channelsEngine) {
+            this.channelsEngine.alphaChannels.push({
+              id: spot.id,
+              name: `[Spot] ${spot.name}`,
+              type: 'spot',
+              width: spot.width,
+              height: spot.height,
+              visible: true,
+              data: spot.data,
+              renderThumbnail: (ctx, w, h) => {
+                ctx.fillStyle = spot.tintColorHex;
+                ctx.fillRect(0, 0, w, h);
+              }
+            });
+            this.renderChannelsPaletteList();
+            this.pushHistoryState(`Create Spot Channel (${spot.name})`);
+            this.showToast(`Created Spot Ink Channel: ${spot.name}`);
+          }
+        }
+      };
+    }
+
     if (btnDup) {
       btnDup.onclick = () => {
         if (!this.channelsEngine) return;
@@ -10093,6 +10124,18 @@ class PixelForgeApp {
     const previewCanvas = document.getElementById('lens-correction-preview');
     const pCtx = previewCanvas ? previewCanvas.getContext('2d') : null;
 
+    const selectProfile = document.getElementById('lens-profile-select');
+    if (selectProfile && typeof LensProfileDatabase !== 'undefined') {
+      selectProfile.innerHTML = '<option value="custom">-- Custom / Manual Calibration --</option>';
+      const list = LensProfileDatabase.getProfileList();
+      list.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        selectProfile.appendChild(opt);
+      });
+    }
+
     const sliderDist = document.getElementById('lens-distortion-slider');
     const valDist = document.getElementById('val-lens-distortion');
     const sliderRed = document.getElementById('lens-defringe-red-slider');
@@ -10150,6 +10193,21 @@ class PixelForgeApp {
     if (sliderVigAm) sliderVigAm.oninput = updatePreview;
     if (sliderVigMid) sliderVigMid.oninput = updatePreview;
     if (checkScale) checkScale.onchange = updatePreview;
+
+    if (selectProfile) {
+      selectProfile.onchange = () => {
+        if (selectProfile.value === 'custom') return;
+        const prof = LensProfileDatabase.PROFILES.find(p => p.id === selectProfile.value);
+        if (prof) {
+          if (sliderDist) sliderDist.value = prof.distortion;
+          if (sliderRed) sliderRed.value = prof.redCyanDefringe;
+          if (sliderBlue) sliderBlue.value = prof.blueYellowDefringe;
+          if (sliderVigAm) sliderVigAm.value = prof.vignetteAmount;
+          if (sliderVigMid) sliderVigMid.value = prof.vignetteMidpoint;
+          updatePreview();
+        }
+      };
+    }
 
     updatePreview();
 

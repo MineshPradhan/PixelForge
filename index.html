@@ -570,6 +570,17 @@
           <option value="outside">Outside</option>
         </select>
       </label>
+      <label title="Variable-Width Stroke Pressure Profile (Affinity / Illustrator Parity)">Profile:
+        <select id="pen-stroke-profile" style="width: 105px; font-size:11px;">
+          <option value="uniform">Uniform</option>
+          <option value="taper_both">Taper Both</option>
+          <option value="taper_start">Taper Start</option>
+          <option value="taper_end">Taper End</option>
+          <option value="flare_ends">Flare Ends</option>
+          <option value="bulge_center">Bulge Center</option>
+          <option value="calligraphy">Calligraphy (45°)</option>
+        </select>
+      </label>
       <div class="divider-v"></div>
       <button id="btn-pen-selection" class="btn-primary-sm" title="Convert Path to Selection (Ctrl+Enter)">To Selection</button>
       <button id="btn-pen-from-selection" class="btn-ghost-sm" title="Make Work Path from Active Selection">From Sel</button>
@@ -4109,6 +4120,7 @@
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button id="btn-chan-load-sel" class="btn-ghost-sm" title="Load Channel as Selection">Load as Selection</button>
           <button id="btn-chan-save-sel" class="btn-ghost-sm" title="Save Selection as Alpha Channel">Save as Alpha</button>
+          <button id="btn-chan-new-spot" class="btn-ghost-sm" title="New Spot Color Channel (PANTONE / Custom Spot Ink)">+ Spot Channel</button>
           <button id="btn-chan-dup" class="btn-ghost-sm" title="Duplicate Channel">Duplicate</button>
           <button id="btn-chan-del" class="btn-ghost-sm" title="Delete Channel">Delete</button>
           <button id="btn-chan-calc" class="btn-ghost-sm" title="Channel Calculations">Calculations...</button>
@@ -4852,6 +4864,12 @@ console.log("Active layer:", active ? active.name : "None");
           <canvas id="lens-correction-preview" width="360" height="200" style="max-width:100%; height:auto; border-radius:4px;"></canvas>
         </div>
         <div class="form-row">
+          <label>Camera & Lens Profile (Lensfun DB):</label>
+          <select id="lens-profile-select" style="flex:1; padding:3px 6px; font-size:11px; background:var(--bg-canvas); color:var(--text-main); border:1px solid var(--border-color); border-radius:4px;">
+            <option value="custom">-- Custom / Manual Calibration --</option>
+          </select>
+        </div>
+        <div class="form-row">
           <label>Geometric Distortion:</label>
           <input type="range" id="lens-distortion-slider" min="-60" max="60" value="0">
           <span id="val-lens-distortion" style="font-family:monospace; min-width:36px;">0</span>
@@ -5047,6 +5065,9 @@ console.log("Active layer:", active ? active.name : "None");
   <script src="js/adobe-importers.js"></script>
   <script src="js/pathfinder.js"></script>
   <script src="js/multi-document.js"></script>
+  <script src="js/lens-profile-db.js"></script>
+  <script src="js/vector-stroke-profiler.js"></script>
+  <script src="js/spot-color-channels.js"></script>
   <script src="js/tools.js"></script>
   <script src="js/app.js"></script>
 </body>

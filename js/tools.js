@@ -464,6 +464,13 @@ class ToolManager {
       });
     }
 
+    const penStrokeProfile = document.getElementById('pen-stroke-profile');
+    if (penStrokeProfile) {
+      penStrokeProfile.addEventListener('change', () => {
+        if (this.pathManager) this.pathManager.strokeProfile = penStrokeProfile.value;
+      });
+    }
+
     const btnPenSel = document.getElementById('btn-pen-selection');
     if (btnPenSel) {
       btnPenSel.addEventListener('click', () => {
@@ -532,7 +539,8 @@ class ToolManager {
             this.pathManager.lineDash || [],
             this.pathManager.lineCap || 'round',
             this.pathManager.lineJoin || 'round',
-            this.pathManager.strokeAlign || 'center'
+            this.pathManager.strokeAlign || 'center',
+            this.pathManager.strokeProfile || 'uniform'
           );
           this.app.renderComposite();
           this.app.pushHistoryState('Stroke Path');

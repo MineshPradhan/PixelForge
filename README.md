@@ -43,6 +43,9 @@
 | **Interactive Toolbar Customizer** | ✅ 6-category drawer + presets | ✅ Native | ⚠️ Basic customize | ⚠️ Preferences dock |
 | **Automated Multi-Platform CI/CD** | ✅ GitHub Actions (.exe, AppImage, deb) | ❌ Proprietary Installer | ❌ Proprietary Installer | ✅ Source / Flatpak |
 | **Cross-Platform (Windows & Linux)** | ✅ Windows .exe + Linux AppImage/deb | ❌ Windows & Mac only | ❌ Windows & Mac only | ✅ Linux, Windows & Mac |
+| **Lens Correction Profiles (Lensfun Parity)** | ✅ Calibrated profiles (Distortion, TCA, Vignette) | ✅ Lens Profile Creator | ✅ Lens Correction Engine | ⚠️ Lensfun plugin dependency |
+| **Vector Variable-Width Stroke Profiling** | ✅ Dynamic arc-length normal ribbon profiles | ⚠️ Stroke profiles / Width Tool | ✅ Pressure / Width Profiles | ❌ Uniform strokes only |
+| **Spot Color Prepress Inks & Plates** | ✅ 8-bit density buffers + Pantone/Metallic/White | ✅ Native Spot Channels | ✅ Spot Inks | ❌ CMYK/RGB only |
 | **License & Pricing** | **Free & Open Source (MIT)** | \$239.88 / year subscription | \$69.99 perpetual | Free & Open Source (GPL) |
 
 ---
@@ -111,6 +114,25 @@
 - Multi-scale gradient and chromatic contrast saliency detector.
 - Traces high-precision contours without oval or elliptical distortion.
 - Supports both **Select Subject (Automatic)** and **Object Selection Tool (User-defined area marquee)**.
+
+### 🔍 Automatic Lens Profile Calibration Database (Lensfun Parity)
+- Zero-dependency built-in camera & lens optical calibration database (`LensProfileDatabase`):
+  - Calibrated profiles for Canon RF/EF, Sony FE GM, Nikon NIKKOR Z, Sigma Art, Tamron, and Fisheye/Action systems.
+  - Automatically compensates radial polynomial barrel/pincushion distortion ($r_d = r(1 + k_1 r^2 + k_2 r^4)$).
+  - Lateral chromatic aberration correction (transverse color fringing cancellation across red/cyan and blue/yellow channels).
+  - Optical vignetting illumination restoration ($\cos^4 \theta$ falloff compensation with adjustable midpoint).
+
+### 🖋️ Non-Destructive Vector Variable-Width Stroke Profiler
+- Analytical arc-length normalized normal offset ribbon generator (`VectorStrokeProfiler`):
+  - Replaces rigid uniform strokes with continuous width modulation functions: `uniform`, `taper_both`, `taper_start`, `taper_end`, `flare_ends`, `bulge_center`, and `calligraphy`.
+  - Calculates dynamic tangent normals $\mathbf{n}(t) = (-y'(t), x'(t))$ to project left and right boundary polygon ribbons.
+  - Full non-destructive integration with the Pen Tool, Curvature Tool, and Paths panel.
+
+### 🖨️ Prepress Spot Color Channels & Custom Inks Engine
+- Professional print production spot ink management (`SpotColorManager`):
+  - Dedicated 8-bit density raster buffers ($0-255$, where $255 = 100\%$ ink coverage) independent of composite RGB/CMYK channels.
+  - Color preview tint mapping with adjustable ink solidity and opacity (e.g. Pantone 185 C, Reflex Blue C, Metallic Gold 871 C, Silver 877 C, White Ink Underbase, Clear Gloss Varnish).
+  - Prepress plate isolation: generates isolated high-contrast film separation negatives/positives for specialty physical printing plates.
 
 ---
 
@@ -331,7 +353,8 @@ npm test
 ```
 
 ### Verified Test Suites:
-- `test-blackbox-components-audit.js`: Audits all 172 menu actions, 49 tools, and 61 modals (**0 errors**).
+- `test-frontiers-gap-closing.js`: Lens profile database, vector variable-width stroke ribbons, spot color prepress channels (**Passed**).
+- `test-blackbox-components-audit.js`: Audits all 175 menu actions, 49 tools, and 61 modals (**0 errors**).
 - `test-raw-container.js`: DNG, CR2, NEF, ARW binary IFD reading, CFA demosaic roundtrip (**Passed**).
 - `test-cmyk-export.js`: Native 4-channel CMYK TIFF & prepress separation plates (**Passed**).
 - `test-exr-codec.js`: OpenEXR 32-bit linear half-float encoder/decoder & ACES tonemap (**Passed**).
