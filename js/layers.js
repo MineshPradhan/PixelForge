@@ -398,7 +398,20 @@ class LayerManager {
       }
     }
 
-    ctx.font = `${style} ${weight} ${size}px ${family}`;
+    let finalWeight = weight;
+    if (p.variations && p.variations.wght) {
+      finalWeight = p.variations.wght;
+    }
+    ctx.font = `${style} ${finalWeight} ${size}px ${family}`;
+    if (typeof OpenTypeFeatureEngine !== 'undefined') {
+      const featStr = OpenTypeFeatureEngine.toCssFeatureSettings(p.features);
+      const varStr = OpenTypeFeatureEngine.toCssVariationSettings(p.variations);
+      if (featStr && featStr !== 'normal') ctx.fontFeatureSettings = featStr;
+      if (varStr && varStr !== 'normal') ctx.fontVariationSettings = varStr;
+    }
+    if ('letterSpacing' in ctx && tracking !== 0) {
+      ctx.letterSpacing = `${tracking}px`;
+    }
     ctx.fillStyle = p.color || '#ffffff';
     ctx.textBaseline = 'alphabetic';
 

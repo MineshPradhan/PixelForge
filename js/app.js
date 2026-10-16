@@ -271,6 +271,12 @@ class PixelForgeApp {
       this.toolbarCustomizer = new ToolbarCustomizerManager(this);
       this.toolbarCustomizer.init();
     }
+    if (typeof MultiDocumentManager !== 'undefined') {
+      this.multiDoc = new MultiDocumentManager(this);
+      this.multiDoc.init();
+    }
+    this.bindAdobePresetImporters();
+    this.bindPathfinderControls();
     this.bindRulerGuideInteractions();
 
     const psdInput = document.getElementById('browser-psd-input');
@@ -1843,6 +1849,15 @@ class PixelForgeApp {
         break;
       case 'export-lut-cube':
         this.openLutBakerModal();
+        break;
+      case 'import-swatches':
+        document.getElementById('input-import-swatches')?.click();
+        break;
+      case 'export-swatches-ase':
+        this.exportSwatchesAse();
+        break;
+      case 'import-brushes':
+        document.getElementById('input-import-abr')?.click();
         break;
       case 'load-custom-font':
         document.getElementById('browser-font-input')?.click();
@@ -6539,6 +6554,47 @@ class PixelForgeApp {
     bindTypoNum('typo-left-indent', 'leftIndent', 0, 300);
     bindTypoNum('typo-space-after', 'spaceAfter', 0, 150);
 
+    // OpenType Feature Toggles
+    document.querySelectorAll('[id^="typo-feat-"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const feat = btn.dataset.feat;
+        const active = this.layerManager.getActiveLayer();
+        if (active && active.type === 'text' && active.textParams) {
+          if (!active.textParams.features) active.textParams.features = {};
+          active.textParams.features[feat] = !active.textParams.features[feat];
+          btn.classList.toggle('active', !!active.textParams.features[feat]);
+          this.layerManager.renderTextLayer(active);
+          this.renderComposite();
+          this.pushHistoryState(`Toggle OpenType ${feat.toUpperCase()}`);
+        }
+      });
+    });
+
+    // Variable Font Axis Sliders
+    const bindAxisSlider = (sliderId, labelId, axisName, unit = '') => {
+      const slider = document.getElementById(sliderId);
+      const label = document.getElementById(labelId);
+      if (!slider) return;
+      const updateAxis = (fromChange = false) => {
+        const val = parseFloat(slider.value);
+        if (label) label.textContent = `${val}${unit}`;
+        const active = this.layerManager.getActiveLayer();
+        if (active && active.type === 'text' && active.textParams) {
+          if (!active.textParams.variations) active.textParams.variations = {};
+          active.textParams.variations[axisName] = val;
+          this.layerManager.renderTextLayer(active);
+          this.renderComposite();
+          if (fromChange) this.pushHistoryState(`Change Font ${axisName.toUpperCase()}`);
+        }
+      };
+      slider.addEventListener('input', () => updateAxis(false));
+      slider.addEventListener('change', () => updateAxis(true));
+    };
+
+    bindAxisSlider('typo-var-wght', 'val-var-wght', 'wght');
+    bindAxisSlider('typo-var-wdth', 'val-var-wdth', 'wdth', '%');
+    bindAxisSlider('typo-var-slnt', 'val-var-slnt', 'slnt', '°');
+
     const btnRasterize = document.getElementById('btn-rasterize-type');
     if (btnRasterize) {
       btnRasterize.addEventListener('click', () => {
@@ -6617,6 +6673,25 @@ class PixelForgeApp {
     setToggleState('typo-btn-strike', p.strikethrough);
     setToggleState('typo-btn-superscript', p.superscript);
     setToggleState('typo-btn-subscript', p.subscript);
+
+    // Sync OpenType feature buttons
+    const feats = p.features || {};
+    document.querySelectorAll('[id^="typo-feat-"]').forEach(btn => {
+      const feat = btn.dataset.feat;
+      btn.classList.toggle('active', feats[feat] === true || (feat === 'liga' && feats[feat] !== false));
+    });
+
+    // Sync Variable Font Axis Sliders
+    const vars = p.variations || {};
+    const syncAxis = (sliderId, labelId, val, unit = '') => {
+      const slider = document.getElementById(sliderId);
+      const label = document.getElementById(labelId);
+      if (slider && document.activeElement !== slider) slider.value = val;
+      if (label) label.textContent = `${val}${unit}`;
+    };
+    syncAxis('typo-var-wght', 'val-var-wght', vars.wght !== undefined ? vars.wght : (parseInt(p.fontWeight, 10) || 400));
+    syncAxis('typo-var-wdth', 'val-var-wdth', vars.wdth !== undefined ? vars.wdth : 100, '%');
+    syncAxis('typo-var-slnt', 'val-var-slnt', vars.slnt !== undefined ? vars.slnt : 0, '°');
   }
 
   openTypographyInspector(layer = null) {
@@ -6633,6 +6708,167 @@ class PixelForgeApp {
       txtContent.focus();
       txtContent.select();
     }
+  }
+
+  // ── Adobe Preset Importers & Swatches (.ase, .aco, .abr) ──
+  bindAdobePresetImporters() {
+    const swatchesInput = document.getElementById('input-import-swatches');
+    const btnImportSwatches = document.getElementById('btn-import-swatches');
+    const btnExportSwatches = document.getElementById('btn-export-swatches');
+    const abrInput = document.getElementById('input-import-abr');
+    const btnImportAbr = document.getElementById('btn-import-abr');
+
+    if (btnImportSwatches && swatchesInput) {
+      btnImportSwatches.addEventListener('click', () => swatchesInput.click());
+    }
+    if (btnExportSwatches) {
+      btnExportSwatches.addEventListener('click', () => this.exportSwatchesAse());
+    }
+    if (btnImportAbr && abrInput) {
+      btnImportAbr.addEventListener('click', () => abrInput.click());
+    }
+
+    if (swatchesInput) {
+      swatchesInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+          const buffer = await file.arrayBuffer();
+          let swatches = [];
+          if (file.name.toLowerCase().endsWith('.aco')) {
+            swatches = AdobePresetImporter.parseAco(buffer);
+          } else {
+            swatches = AdobePresetImporter.parseAse(buffer);
+          }
+          this.loadCustomSwatches(swatches);
+          this.showToast(`Imported ${swatches.length} swatches from ${file.name}`);
+        } catch (err) {
+          console.error('Swatch import failed:', err);
+          alert('Failed to import swatch palette: ' + err.message);
+        }
+        swatchesInput.value = '';
+      });
+    }
+
+    if (abrInput) {
+      abrInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+          const buffer = await file.arrayBuffer();
+          const brushes = AdobePresetImporter.parseAbr(buffer);
+          this.loadCustomBrushes(brushes);
+          this.showToast(`Imported ${brushes.length} Photoshop brushes from ${file.name}`);
+        } catch (err) {
+          console.error('ABR import failed:', err);
+          alert('Failed to import brush preset: ' + err.message);
+        }
+        abrInput.value = '';
+      });
+    }
+  }
+
+  loadCustomSwatches(swatches) {
+    const container = document.getElementById('swatches-palette-container');
+    if (!container || !Array.isArray(swatches)) return;
+    for (const s of swatches) {
+      const chip = document.createElement('span');
+      chip.className = 'swatch-chip';
+      chip.style.background = s.hex;
+      chip.dataset.color = s.hex;
+      chip.title = `${s.name || 'Color'} (${s.hex})`;
+      chip.addEventListener('click', () => {
+        if (this.colorPicker) {
+          this.colorPicker.setFgHex(s.hex);
+        }
+      });
+      container.appendChild(chip);
+    }
+  }
+
+  exportSwatchesAse() {
+    const chips = document.querySelectorAll('.swatch-chip');
+    const swatches = [];
+    chips.forEach((c, idx) => {
+      const hex = c.dataset.color || '#000000';
+      const r = parseInt(hex.slice(1, 3), 16) || 0;
+      const g = parseInt(hex.slice(3, 5), 16) || 0;
+      const b = parseInt(hex.slice(5, 7), 16) || 0;
+      swatches.push({
+        name: c.title ? c.title.split(' (')[0] : `Swatch ${idx + 1}`,
+        hex,
+        rgb: [r, g, b],
+        space: 'RGB ',
+        type: 'Normal'
+      });
+    });
+
+    if (typeof AdobePresetImporter !== 'undefined') {
+      const u8 = AdobePresetImporter.encodeAse(swatches, 'PixelForge Swatches');
+      const blob = new Blob([u8], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'PixelForge-Swatches.ase';
+      a.click();
+      URL.revokeObjectURL(url);
+      this.showToast(`Exported ${swatches.length} swatches to .ase`);
+    }
+  }
+
+  loadCustomBrushes(brushes) {
+    const sel = document.getElementById('brush-preset-select');
+    if (!sel || !Array.isArray(brushes)) return;
+    for (let i = 0; i < brushes.length; i++) {
+      const b = brushes[i];
+      const opt = document.createElement('option');
+      opt.value = `custom-abr-${i}`;
+      opt.textContent = `${b.name || 'Brush ' + (i + 1)} (${b.size}px)`;
+      sel.appendChild(opt);
+    }
+  }
+
+  // ── Vector Boolean Pathfinder Controls ──
+  bindPathfinderControls() {
+    const ops = [
+      { id: 'btn-path-union', op: 'union', label: 'Combine Shapes (Union)' },
+      { id: 'btn-path-subtract', op: 'subtract', label: 'Subtract Front Shape' },
+      { id: 'btn-path-intersect', op: 'intersect', label: 'Intersect Shape Areas' },
+      { id: 'btn-path-exclude', op: 'exclude', label: 'Exclude Overlapping Shapes' }
+    ];
+
+    ops.forEach(({ id, op, label }) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        // Check if there are 2 shape layers available to combine
+        if (this.layerManager && this.layerManager.layers.length >= 2) {
+          const activeIdx = this.layerManager.activeLayerIndex;
+          const otherIdx = activeIdx > 0 ? activeIdx - 1 : activeIdx + 1;
+          const layerA = this.layerManager.layers[activeIdx];
+          const layerB = this.layerManager.layers[otherIdx];
+
+          const isShape = (l) => l && (l.type?.startsWith('shape') || l.type === 'path' || l.properties?.shapeType);
+          if (isShape(layerA) && isShape(layerB) && typeof VectorPathfinder !== 'undefined') {
+            const merged = VectorPathfinder.combineShapeLayers(layerA, layerB, op, this.layerManager);
+            if (merged) {
+              this.pushHistoryState(label);
+              this.renderComposite();
+              this.showToast(`Applied ${label}`);
+              return;
+            }
+          }
+        }
+
+        // Otherwise delegate to tools pathManager
+        if (this.tools && typeof this.tools.applyPathBoolean === 'function') {
+          const handled = this.tools.applyPathBoolean(op);
+          if (handled) {
+            this.showToast(`Path Boolean (${op}) applied`);
+          }
+        }
+      });
+    });
   }
 
   // ── Drag & Drop Photo Engine ──

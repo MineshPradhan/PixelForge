@@ -1015,6 +1015,27 @@ class PathManager {
       return a;
     }
 
+    // High-precision vector analytical CSG when VectorPathfinder is present
+    if (typeof VectorPathfinder !== 'undefined' && a.length > 0 && b.length > 0) {
+      try {
+        let currentResult = [a[0]];
+        for (let i = 1; i < a.length; i++) {
+          currentResult = VectorPathfinder.combineSubpaths(currentResult[0], a[i], 'union');
+        }
+        for (const spB of b) {
+          currentResult = VectorPathfinder.combineSubpaths(currentResult[0], spB, operation);
+        }
+        if (currentResult && currentResult.length > 0) {
+          this.subpaths = currentResult;
+          this.activeSubpathIndex = 0;
+          this.activePointIndex = 0;
+          return this.subpaths;
+        }
+      } catch (err) {
+        // Fall back to buffer-based tracing
+      }
+    }
+
     // Determine bounding box with margin
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const sp of [...a, ...b]) {

@@ -29,6 +29,9 @@
 | Feature Category | PixelForge Studio | Adobe Photoshop CC | Affinity Photo 2 | GIMP 2.10 / 3.0 |
 | :--- | :---: | :---: | :---: | :---: |
 | **Photoshop PSD & PSB Roundtrip** | ✅ Full (PSD & PSB up to 300k px) | ✅ Native | ⚠️ PSD only (Partial PSB) | ⚠️ PSD only (Partial) |
+| **Adobe Preset Importers (.abr, .ase, .aco)** | ✅ Native Pure-JS Binary Parsers & Exporter | ✅ Native | ⚠️ Partial (.abr only) | ⚠️ Brushes only (GIMP .gbr) |
+| **Vector Boolean Shape Operations (Pathfinder)** | ✅ Union, Subtract, Intersect, Exclude | ✅ Native Shape Modes | ✅ Geometry Operations | ⚠️ Path tool subtract only |
+| **Multi-Document Tabbed Workspace** | ✅ Concurrent tabs + Cross-Doc Layer Clone | ✅ Native Tabs | ✅ Native Tabs | ⚠️ Image tabs |
 | **Camera RAW Container (DNG/CR2/NEF/ARW)** | ✅ Native Pure-JS Parser & CFA Demosaic | ✅ Adobe Camera Raw | ✅ Serif RAW Engine | ⚠️ Requires Darktable / UFRaw |
 | **Native 4-Channel CMYK TIFF & Plates** | ✅ GCR + 4 Film Separation Plates | ✅ Native CMYK | ✅ Native CMYK | ⚠️ RGB-only core (Separate+ plugin) |
 | **OpenEXR 32-Bit Linear HDR** | ✅ Half-Float Codec + ACES Tonemap | ✅ Native EXR | ✅ Native EXR | ⚠️ Basic 32-bit float |
@@ -38,12 +41,38 @@
 | **Advanced OpenType & Variable Fonts** | ✅ Features (`liga`, `smcp`, `tnum`) + Axes | ✅ Full | ✅ Full | ⚠️ Basic text formatting |
 | **Generative Fill & AI Inpainting** | ✅ Texture-aware Poisson synthesis | ✅ Firefly (Cloud) | ❌ None | ❌ Resynthesizer plugin |
 | **Interactive Toolbar Customizer** | ✅ 6-category drawer + presets | ✅ Native | ⚠️ Basic customize | ⚠️ Preferences dock |
+| **Automated Multi-Platform CI/CD** | ✅ GitHub Actions (.exe, AppImage, deb) | ❌ Proprietary Installer | ❌ Proprietary Installer | ✅ Source / Flatpak |
 | **Cross-Platform (Windows & Linux)** | ✅ Windows .exe + Linux AppImage/deb | ❌ Windows & Mac only | ❌ Windows & Mac only | ✅ Linux, Windows & Mac |
 | **License & Pricing** | **Free & Open Source (MIT)** | \$239.88 / year subscription | \$69.99 perpetual | Free & Open Source (GPL) |
 
 ---
 
 ## 🌟 Key Architectural Highlights
+
+### 🎨 Adobe Preset Asset Importers (.abr, .ase, .aco) & Swatch Exporter
+- High-performance, zero-dependency binary parsers for industry-standard Adobe preset bundles:
+  - **Adobe Swatch Exchange (`.ase`)**: Full decoding of RGB, CMYK, LAB (D65), and Grayscale palettes with global/spot classifications, plus a binary `.ase` serializer for exporting swatches.
+  - **Adobe Color Palette (`.aco`)**: Support for Version 1 and Version 2 swatches with UTF-16 BE color names and accurate HSB/Lab/CMYK conversions.
+  - **Photoshop Brush Presets (`.abr`)**: Legacy Version 1/2 and modern Version 6+ sampled brush tips (`8BIM samp`) with PackBits RLE scanline decompression.
+
+### 📐 Vector Boolean Shape Operations Engine (Pathfinder)
+- Analytical 2D constructive solid geometry (CSG) engine for vector paths and shape layers:
+  - **Union (Combine)**, **Subtract Front (Difference)**, **Intersect**, and **Exclude Overlapping (XOR)**.
+  - Fast-path exact rectilinear CSG for axis-aligned shapes and generalized Greiner-Hormann polygon clipping.
+  - Seamless integration with Subpaths, Bézier curves, and shape layers in the layer stack.
+
+### 📑 Multi-Document Tabbed Interface
+- Concurrent multi-document session manager (`MultiDocumentManager`):
+  - Top document tab bar displaying document titles, dirty indicators (`*`), zoom percentages, and close controls.
+  - Instant $O(1)$ document switching preserving individual layer stacks, history timelines, zoom/pan states, and rulers.
+  - Cross-document layer cloning: duplicate or drag layers seamlessly between active documents.
+
+### 🚀 Automated Multi-Platform GitHub Actions CI/CD Pipeline
+- Production-grade `.github/workflows/build-release.yml` with automated testing and packaging:
+  - Matrix test execution on Windows and Ubuntu Linux across Node 20.x and 22.x.
+  - Automated Windows build generating NSIS installers and portable executables.
+  - Automated Linux build generating AppImage, `.deb`, and `.tar.gz` packages.
+  - Automated GitHub Releases with SHA-256 checksums on version tag pushes.
 
 ### 📸 Camera RAW Binary Container & DNG Decoder Engine
 - High-performance binary parser for standard TIFF-based digital camera raw formats: **Adobe DNG**, **Canon CR2**, **Nikon NEF**, and **Sony ARW**.
