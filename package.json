@@ -30,7 +30,8 @@
       "category": "Graphics",
       "icon": "assets/icon.png",
       "synopsis": "Professional Photoshop Alternative for Linux & Windows",
-      "description": "PixelForge Studio is a professional digital photo editing, retouching, and graphic compositing suite with Photoshop parity."
+      "description": "PixelForge Studio is a professional digital photo editing, retouching, and graphic compositing suite with Photoshop parity.",
+      "maintainer": "Minesh Pradhan <mineshpradhan2002@gmail.com>"
     },
     "nsis": {
       "oneClick": false,
@@ -48,7 +49,11 @@
     "electron",
     "windows"
   ],
-  "author": "Minesh",
+  "author": {
+    "name": "Minesh Pradhan",
+    "email": "mineshpradhan2002@gmail.com",
+    "url": "https://github.com/MineshPradhan"
+  },
   "license": "MIT",
   "devDependencies": {
     "electron": "^31.3.1",
