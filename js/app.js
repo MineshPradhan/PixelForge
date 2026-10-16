@@ -1592,6 +1592,9 @@ class PixelForgeApp {
       case 'open-psd':
         this.openPsdDialog();
         break;
+      case 'open-camera-raw':
+        this.openCameraRawDialog();
+        break;
       case 'save-psd':
         this.savePsdFile();
         break;
@@ -1955,6 +1958,12 @@ class PixelForgeApp {
         break;
       case 'filter-photo-filter':
         this.openAdjustmentInspector('photo-filter');
+        break;
+      case 'filter-shadows-highlights':
+        this.openAdjustmentInspector('shadows-highlights');
+        break;
+      case 'filter-replace-color':
+        this.openAdjustmentInspector('replace-color');
         break;
       case 'filter-auto-contrast':
         this.applyFilter('autoContrast');
@@ -2426,7 +2435,7 @@ class PixelForgeApp {
     const inspectorTypes = [
       'posterize', 'threshold', 'brightnesscontrast', 
       'huesaturation', 'vibrance', 'colorbalance', 
-      'photofilter', 'gaussianblur'
+      'photofilter', 'gaussianblur', 'shadowshighlights', 'replacecolor'
     ];
     if (inspectorTypes.includes(norm)) {
       this.openAdjustmentInspector(type, adjLayer.adjustmentParams, adjLayer);
@@ -3373,7 +3382,11 @@ class PixelForgeApp {
       'photo-filter': 'Photo Filter',
       'photoFilter': 'Photo Filter',
       'gaussian-blur': 'Gaussian Blur',
-      'unsharp-mask': 'Unsharp Mask'
+      'unsharp-mask': 'Unsharp Mask',
+      'shadows-highlights': 'Shadows / Highlights',
+      'shadowshighlights': 'Shadows / Highlights',
+      'replace-color': 'Replace Color',
+      'replacecolor': 'Replace Color'
     };
 
     const title = titles[normalizedType] || normalizedType.toUpperCase();
@@ -3958,6 +3971,211 @@ class PixelForgeApp {
         break;
       }
 
+      case 'shadows-highlights':
+      case 'shadowshighlights': {
+        defaultParams = { shadowAmount: 35, highlightAmount: 35, midtoneContrast: 0 };
+        currentParams = Object.assign({}, defaultParams, initialParams || (adjLayer ? adjLayer.adjustmentParams : {}));
+
+        bodyEl.innerHTML = `
+          <div class="adj-control-row">
+            <div class="adj-control-header">
+              <strong>Shadows (Amount):</strong>
+              <span class="adj-val-badge" id="val-adj-sh-shadow">${currentParams.shadowAmount}%</span>
+            </div>
+            <div class="adj-slider-row">
+              <input type="range" id="slider-adj-sh-shadow" min="0" max="100" value="${currentParams.shadowAmount}">
+              <input type="number" id="num-adj-sh-shadow" class="adj-num-input" min="0" max="100" value="${currentParams.shadowAmount}">
+            </div>
+          </div>
+          <div class="adj-control-row">
+            <div class="adj-control-header">
+              <strong>Highlights (Amount):</strong>
+              <span class="adj-val-badge" id="val-adj-sh-highlight">${currentParams.highlightAmount}%</span>
+            </div>
+            <div class="adj-slider-row">
+              <input type="range" id="slider-adj-sh-highlight" min="0" max="100" value="${currentParams.highlightAmount}">
+              <input type="number" id="num-adj-sh-highlight" class="adj-num-input" min="0" max="100" value="${currentParams.highlightAmount}">
+            </div>
+          </div>
+          <div class="adj-control-row">
+            <div class="adj-control-header">
+              <strong>Midtone Contrast:</strong>
+              <span class="adj-val-badge" id="val-adj-sh-contrast">${currentParams.midtoneContrast}</span>
+            </div>
+            <div class="adj-slider-row">
+              <input type="range" id="slider-adj-sh-contrast" min="-100" max="100" value="${currentParams.midtoneContrast}">
+              <input type="number" id="num-adj-sh-contrast" class="adj-num-input" min="-100" max="100" value="${currentParams.midtoneContrast}">
+            </div>
+          </div>
+        `;
+
+        const sShadow = document.getElementById('slider-adj-sh-shadow');
+        const nShadow = document.getElementById('num-adj-sh-shadow');
+        const vShadow = document.getElementById('val-adj-sh-shadow');
+        const sHighlight = document.getElementById('slider-adj-sh-highlight');
+        const nHighlight = document.getElementById('num-adj-sh-highlight');
+        const vHighlight = document.getElementById('val-adj-sh-highlight');
+        const sContrast = document.getElementById('slider-adj-sh-contrast');
+        const nContrast = document.getElementById('num-adj-sh-contrast');
+        const vContrast = document.getElementById('val-adj-sh-contrast');
+
+        liveUpdateFn = () => {
+          const sVal = parseInt(sShadow.value, 10) || 0;
+          const hVal = parseInt(sHighlight.value, 10) || 0;
+          const cVal = parseInt(sContrast.value, 10) || 0;
+          currentParams.shadowAmount = sVal;
+          currentParams.highlightAmount = hVal;
+          currentParams.midtoneContrast = cVal;
+          vShadow.textContent = sVal + '%';
+          nShadow.value = sVal;
+          vHighlight.textContent = hVal + '%';
+          nHighlight.value = hVal;
+          vContrast.textContent = cVal;
+          nContrast.value = cVal;
+
+          if (chkLivePreview && !chkLivePreview.checked) return;
+
+          if (isAdjLayer && adjLayer) {
+            adjLayer.adjustmentParams = { shadowAmount: sVal, highlightAmount: hVal, midtoneContrast: cVal };
+            this.renderComposite();
+          } else {
+            this.applyFilterPreview((imgData) => Filters.shadowsHighlights(imgData, sVal, hVal, cVal));
+          }
+        };
+
+        sShadow.oninput = liveUpdateFn;
+        nShadow.oninput = () => { sShadow.value = Math.max(0, Math.min(100, parseInt(nShadow.value, 10) || 0)); liveUpdateFn(); };
+        sHighlight.oninput = liveUpdateFn;
+        nHighlight.oninput = () => { sHighlight.value = Math.max(0, Math.min(100, parseInt(nHighlight.value, 10) || 0)); liveUpdateFn(); };
+        sContrast.oninput = liveUpdateFn;
+        nContrast.oninput = () => { sContrast.value = Math.max(-100, Math.min(100, parseInt(nContrast.value, 10) || 0)); liveUpdateFn(); };
+        break;
+      }
+
+      case 'replace-color':
+      case 'replacecolor': {
+        defaultParams = { targetRgb: [255, 0, 0], fuzziness: 40, hueShift: 0, satShift: 0, lightShift: 0 };
+        currentParams = Object.assign({}, defaultParams, initialParams || (adjLayer ? adjLayer.adjustmentParams : {}));
+
+        const rgbToHex = (r, g, b) => '#' + [r, g, b].map(x => {
+          const hex = Math.max(0, Math.min(255, Math.round(x))).toString(16);
+          return hex.length === 1 ? '0' + hex : hex;
+        }).join('');
+
+        const hexToRgb = (hex) => {
+          const res = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+          return res ? [parseInt(res[1], 16), parseInt(res[2], 16), parseInt(res[3], 16)] : [255, 0, 0];
+        };
+
+        const initialHex = rgbToHex(currentParams.targetRgb[0], currentParams.targetRgb[1], currentParams.targetRgb[2]);
+
+        bodyEl.innerHTML = `
+          <div class="adj-control-row">
+            <div class="adj-control-header">
+              <strong>Target Sample Color:</strong>
+              <input type="color" id="adj-rc-color" value="${initialHex}" style="width:36px; height:24px; border:none; border-radius:4px; cursor:pointer;">
+            </div>
+          </div>
+          <div class="adj-control-row">
+            <div class="adj-control-header">
+              <strong>Fuzziness / Tolerance:</strong>
+              <span class="adj-val-badge" id="val-adj-rc-fuzz">${currentParams.fuzziness}</span>
+            </div>
+            <div class="adj-slider-row">
+              <input type="range" id="slider-adj-rc-fuzz" min="1" max="200" value="${currentParams.fuzziness}">
+              <input type="number" id="num-adj-rc-fuzz" class="adj-num-input" min="1" max="200" value="${currentParams.fuzziness}">
+            </div>
+          </div>
+          <div class="adj-control-row">
+            <div class="adj-control-header">
+              <strong>Hue Shift:</strong>
+              <span class="adj-val-badge" id="val-adj-rc-hue">${currentParams.hueShift}°</span>
+            </div>
+            <div class="adj-slider-row">
+              <input type="range" id="slider-adj-rc-hue" min="-180" max="180" value="${currentParams.hueShift}">
+              <input type="number" id="num-adj-rc-hue" class="adj-num-input" min="-180" max="180" value="${currentParams.hueShift}">
+            </div>
+          </div>
+          <div class="adj-control-row">
+            <div class="adj-control-header">
+              <strong>Saturation Shift:</strong>
+              <span class="adj-val-badge" id="val-adj-rc-sat">${currentParams.satShift}%</span>
+            </div>
+            <div class="adj-slider-row">
+              <input type="range" id="slider-adj-rc-sat" min="-100" max="100" value="${currentParams.satShift}">
+              <input type="number" id="num-adj-rc-sat" class="adj-num-input" min="-100" max="100" value="${currentParams.satShift}">
+            </div>
+          </div>
+          <div class="adj-control-row">
+            <div class="adj-control-header">
+              <strong>Lightness Shift:</strong>
+              <span class="adj-val-badge" id="val-adj-rc-light">${currentParams.lightShift}%</span>
+            </div>
+            <div class="adj-slider-row">
+              <input type="range" id="slider-adj-rc-light" min="-100" max="100" value="${currentParams.lightShift}">
+              <input type="number" id="num-adj-rc-light" class="adj-num-input" min="-100" max="100" value="${currentParams.lightShift}">
+            </div>
+          </div>
+        `;
+
+        const colEl = document.getElementById('adj-rc-color');
+        const sFuzz = document.getElementById('slider-adj-rc-fuzz');
+        const nFuzz = document.getElementById('num-adj-rc-fuzz');
+        const vFuzz = document.getElementById('val-adj-rc-fuzz');
+        const sHue = document.getElementById('slider-adj-rc-hue');
+        const nHue = document.getElementById('num-adj-rc-hue');
+        const vHue = document.getElementById('val-adj-rc-hue');
+        const sSat = document.getElementById('slider-adj-rc-sat');
+        const nSat = document.getElementById('num-adj-rc-sat');
+        const vSat = document.getElementById('val-adj-rc-sat');
+        const sLight = document.getElementById('slider-adj-rc-light');
+        const nLight = document.getElementById('num-adj-rc-light');
+        const vLight = document.getElementById('val-adj-rc-light');
+
+        liveUpdateFn = () => {
+          const rgb = hexToRgb(colEl.value);
+          const f = parseInt(sFuzz.value, 10) || 40;
+          const h = parseInt(sHue.value, 10) || 0;
+          const s = parseInt(sSat.value, 10) || 0;
+          const l = parseInt(sLight.value, 10) || 0;
+
+          currentParams.targetRgb = rgb;
+          currentParams.fuzziness = f;
+          currentParams.hueShift = h;
+          currentParams.satShift = s;
+          currentParams.lightShift = l;
+
+          vFuzz.textContent = f;
+          nFuzz.value = f;
+          vHue.textContent = h + '°';
+          nHue.value = h;
+          vSat.textContent = s + '%';
+          nSat.value = s;
+          vLight.textContent = l + '%';
+          nLight.value = l;
+
+          if (chkLivePreview && !chkLivePreview.checked) return;
+
+          if (isAdjLayer && adjLayer) {
+            adjLayer.adjustmentParams = { targetRgb: rgb, fuzziness: f, hueShift: h, satShift: s, lightShift: l };
+            this.renderComposite();
+          } else {
+            this.applyFilterPreview((imgData) => Filters.replaceColor(imgData, rgb, f, h, s, l));
+          }
+        };
+
+        colEl.oninput = liveUpdateFn;
+        sFuzz.oninput = liveUpdateFn;
+        nFuzz.oninput = () => { sFuzz.value = Math.max(1, Math.min(200, parseInt(nFuzz.value, 10) || 40)); liveUpdateFn(); };
+        sHue.oninput = liveUpdateFn;
+        nHue.oninput = () => { sHue.value = Math.max(-180, Math.min(180, parseInt(nHue.value, 10) || 0)); liveUpdateFn(); };
+        sSat.oninput = liveUpdateFn;
+        nSat.oninput = () => { sSat.value = Math.max(-100, Math.min(100, parseInt(nSat.value, 10) || 0)); liveUpdateFn(); };
+        sLight.oninput = liveUpdateFn;
+        nLight.oninput = () => { sLight.value = Math.max(-100, Math.min(100, parseInt(nLight.value, 10) || 0)); liveUpdateFn(); };
+        break;
+      }
+
       default: {
         bodyEl.innerHTML = `<div class="adj-desc-hint">Adjusting parameters for ${title}. Live preview is active.</div>`;
         break;
@@ -4079,6 +4297,8 @@ class PixelForgeApp {
 
     let isSplitView = false;
     const params = {
+      bayerPattern: 'none',
+      kelvin: 5500,
       temperature: 0,
       tint: 0,
       exposure: 0,
@@ -4118,9 +4338,49 @@ class PixelForgeApp {
       { id: 'cr-vignette', valId: 'val-cr-vignette', prop: 'vignette', fmt: v => v > 0 ? `+${v}` : `${v}` }
     ];
 
+    const patternEl = document.getElementById('cr-bayer-pattern');
+    const kelvinEl = document.getElementById('cr-kelvin');
+    const valKelvinEl = document.getElementById('val-cr-kelvin');
+
+    if (patternEl) {
+      patternEl.value = params.bayerPattern || 'none';
+      patternEl.onchange = () => {
+        params.bayerPattern = patternEl.value;
+        updatePreview();
+      };
+    }
+
+    if (kelvinEl) {
+      kelvinEl.value = params.kelvin || 5500;
+      if (valKelvinEl) valKelvinEl.textContent = `${kelvinEl.value} K`;
+      kelvinEl.oninput = () => {
+        params.kelvin = parseInt(kelvinEl.value, 10) || 5500;
+        if (valKelvinEl) valKelvinEl.textContent = `${params.kelvin} K`;
+        updatePreview();
+      };
+    }
+
     const updatePreview = () => {
       const baseImg = origCtx.getImageData(0, 0, pw, ph);
-      const graded = Filters.cameraRaw(baseImg, params);
+      let graded;
+
+      if (params.bayerPattern && params.bayerPattern !== 'none' && typeof CameraRawBayerEngine !== 'undefined') {
+        const mosaic = CameraRawBayerEngine.mosaicFromImageData(baseImg, params.bayerPattern);
+        graded = CameraRawBayerEngine.developRaw(mosaic, pw, ph, {
+          pattern: params.bayerPattern,
+          temperature: params.kelvin || 5500,
+          tint: params.tint || 0,
+          exposure: (params.exposure || 0) / 25,
+          contrast: params.contrast || 0,
+          highlights: params.highlights || 0,
+          shadows: params.shadows || 0,
+          vibrance: params.vibrance || 0,
+          saturation: params.saturation || 0,
+          clarity: params.clarity || 0
+        });
+      } else {
+        graded = Filters.cameraRaw(baseImg, params);
+      }
 
       pCtx.clearRect(0, 0, pw, ph);
       if (!isSplitView) {
@@ -4173,6 +4433,11 @@ class PixelForgeApp {
           if (el) el.value = 0;
           if (valEl) valEl.textContent = c.fmt ? c.fmt(0) : '0';
         });
+        if (patternEl) patternEl.value = 'none';
+        if (kelvinEl) kelvinEl.value = 5500;
+        if (valKelvinEl) valKelvinEl.textContent = '5500 K';
+        params.bayerPattern = 'none';
+        params.kelvin = 5500;
         updatePreview();
       };
     }
@@ -4186,7 +4451,24 @@ class PixelForgeApp {
           active.smartObjectData.renderToLayer(active);
         } else {
           const fullImg = active.ctx.getImageData(0, 0, this.width, this.height);
-          const gradedFull = Filters.cameraRaw(fullImg, params);
+          let gradedFull;
+          if (params.bayerPattern && params.bayerPattern !== 'none' && typeof CameraRawBayerEngine !== 'undefined') {
+            const mosaic = CameraRawBayerEngine.mosaicFromImageData(fullImg, params.bayerPattern);
+            gradedFull = CameraRawBayerEngine.developRaw(mosaic, this.width, this.height, {
+              pattern: params.bayerPattern,
+              temperature: params.kelvin || 5500,
+              tint: params.tint || 0,
+              exposure: (params.exposure || 0) / 25,
+              contrast: params.contrast || 0,
+              highlights: params.highlights || 0,
+              shadows: params.shadows || 0,
+              vibrance: params.vibrance || 0,
+              saturation: params.saturation || 0,
+              clarity: params.clarity || 0
+            });
+          } else {
+            gradedFull = Filters.cameraRaw(fullImg, params);
+          }
           active.ctx.putImageData(gradedFull, 0, 0);
         }
         this.renderComposite();

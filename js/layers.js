@@ -237,7 +237,9 @@ class LayerManager {
       gradientMap: 'Gradient Map',
       colorLookup: 'Color Lookup',
       selectiveColor: 'Selective Color',
-      channelMixer: 'Channel Mixer'
+      channelMixer: 'Channel Mixer',
+      shadowsHighlights: 'Shadows / Highlights',
+      replaceColor: 'Replace Color'
     };
     const title = (titleMap[adjType] || adjType) + ` ${this.adjCounter}`;
     const adjLayer = this.createLayerObject(title, 'adjustment', {
@@ -2377,6 +2379,14 @@ class LayerManager {
         if (typeof ChannelMixerEngine !== 'undefined') {
           filtered = ChannelMixerEngine.apply(imgData, p);
         }
+        break;
+      case 'shadowsHighlights':
+      case 'shadows-highlights':
+        filtered = Filters.shadowsHighlights(imgData, p.shadowAmount ?? 35, p.highlightAmount ?? 35, p.midtoneContrast ?? 0);
+        break;
+      case 'replaceColor':
+      case 'replace-color':
+        filtered = Filters.replaceColor(imgData, p.targetRgb || [255, 0, 0], p.fuzziness ?? 40, p.hueShift ?? 0, p.satShift ?? 0, p.lightShift ?? 0);
         break;
       default:
         return;

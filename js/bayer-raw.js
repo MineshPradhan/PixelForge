@@ -196,7 +196,11 @@ const CameraRawBayerEngine = {
    * @param {object} options Photographic development options
    * @returns {ImageData}
    */
-  developRaw(channels, width, height, options = {}) {
+  developRaw(channelsOrRaw, width, height, options = {}) {
+    let channels = channelsOrRaw;
+    if (channelsOrRaw instanceof Uint16Array || channelsOrRaw instanceof Float32Array || Array.isArray(channelsOrRaw)) {
+      channels = this.demosaicBayer(channelsOrRaw, width, height, options.pattern || 'RGGB', options.bitDepth || 14);
+    }
     const {
       temperature = 5500, // Kelvin
       tint = 0,           // -100 to 100

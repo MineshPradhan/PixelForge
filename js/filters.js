@@ -1247,10 +1247,115 @@ const Filters = {
         dst[i]     = Math.max(0, Math.min(255, Math.round(r)));
         dst[i + 1] = Math.max(0, Math.min(255, Math.round(g)));
         dst[i + 2] = Math.max(0, Math.min(255, Math.round(b)));
-        dst[i + 3] = a;
+        dst[i + 3] = src[i + 3];
       }
     }
+    return out;
+  },
 
+  // ── Shadows / Highlights Adjustment (Photoshop Parity) ──
+  shadowsHighlights(imgData, shadowAmount = 35, highlightAmount = 0, midtoneContrast = 0) {
+    const w = imgData.width;
+    const h = imgData.height;
+    const src = imgData.data;
+    const out = new ImageData(w, h);
+    const dst = out.data;
+
+    const sAmt = (shadowAmount / 100);
+    const hAmt = (highlightAmount / 100);
+    const mFactor = midtoneContrast !== 0 ? (259 * (midtoneContrast + 255)) / (255 * (259 - midtoneContrast)) : 1.0;
+
+    for (let i = 0; i < src.length; i += 4) {
+      if (src[i + 3] === 0) {
+        dst[i + 3] = 0;
+        continue;
+      }
+      let r = src[i];
+      let g = src[i + 1];
+      let b = src[i + 2];
+
+      const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0;
+
+      // Shadow recovery: lift dark tones without washing out highlights
+      if (sAmt > 0) {
+        const shadowWeight = Math.pow(Math.max(0, 1.0 - lum * 2.0), 2);
+        const boost = sAmt * shadowWeight * 80;
+        r += boost;
+        g += boost;
+        b += boost;
+      }
+
+      // Highlight recovery: reduce harsh overexposed zones
+      if (hAmt > 0) {
+        const highlightWeight = Math.pow(Math.max(0, (lum - 0.5) * 2.0), 2);
+        const reduction = hAmt * highlightWeight * 70;
+        r -= reduction;
+        g -= reduction;
+        b -= reduction;
+      }
+
+      // Midtone contrast adjustment
+      if (midtoneContrast !== 0) {
+        r = mFactor * (r - 128) + 128;
+        g = mFactor * (g - 128) + 128;
+        b = mFactor * (b - 128) + 128;
+      }
+
+      dst[i]     = Utils.clamp(Math.round(r), 0, 255);
+      dst[i + 1] = Utils.clamp(Math.round(g), 0, 255);
+      dst[i + 2] = Utils.clamp(Math.round(b), 0, 255);
+      dst[i + 3] = src[i + 3];
+    }
+    return out;
+  },
+
+  // ── Replace Color Engine (Photoshop Parity) ──
+  replaceColor(imgData, targetRgb = { r: 255, g: 0, b: 0 }, fuzziness = 40, hueShift = 0, satShift = 0, lightShift = 0) {
+    const w = imgData.width;
+    const h = imgData.height;
+    const src = imgData.data;
+    const out = new ImageData(w, h);
+    const dst = out.data;
+
+    const maxDist = Math.max(1, (fuzziness / 200) * 441.67);
+
+    const tr = targetRgb.r !== undefined ? targetRgb.r : (Array.isArray(targetRgb) ? (targetRgb[0] ?? 255) : 255);
+    const tg = targetRgb.g !== undefined ? targetRgb.g : (Array.isArray(targetRgb) ? (targetRgb[1] ?? 0) : 0);
+    const tb = targetRgb.b !== undefined ? targetRgb.b : (Array.isArray(targetRgb) ? (targetRgb[2] ?? 0) : 0);
+
+    for (let i = 0; i < src.length; i += 4) {
+      if (src[i + 3] === 0) {
+        dst[i + 3] = 0;
+        continue;
+      }
+      const r = src[i];
+      const g = src[i + 1];
+      const b = src[i + 2];
+
+      const dr = r - tr;
+      const dg = g - tg;
+      const db = b - tb;
+      const dist = Math.hypot(dr, dg, db);
+
+      if (dist <= maxDist) {
+        const weight = Math.pow(1.0 - (dist / maxDist), 1.5);
+        const hsl = Utils.rgbToHsl(r, g, b);
+        hsl.h = (hsl.h + hueShift + 360) % 360;
+        hsl.s = Utils.clamp(hsl.s + satShift, 0, 100);
+        hsl.l = Utils.clamp(hsl.l + lightShift, 0, 100);
+
+        const repRgb = Utils.hslToRgb(hsl.h, hsl.s, hsl.l);
+
+        dst[i]     = Utils.clamp(Math.round(r * (1 - weight) + repRgb.r * weight), 0, 255);
+        dst[i + 1] = Utils.clamp(Math.round(g * (1 - weight) + repRgb.g * weight), 0, 255);
+        dst[i + 2] = Utils.clamp(Math.round(b * (1 - weight) + repRgb.b * weight), 0, 255);
+      } else {
+        dst[i]     = r;
+        dst[i + 1] = g;
+        dst[i + 2] = b;
+      }
+      dst[i + 3] = src[i + 3];
+    }
     return out;
   }
 };
