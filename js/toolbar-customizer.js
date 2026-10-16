@@ -731,6 +731,7 @@
         header.className = 'drawer-cat-header';
         header.innerHTML = `
           <div style="display:flex; align-items:center; gap:7px;">
+            <span class="drawer-cat-chevron" style="font-size:9px; color:var(--text-dim); transition:transform 0.15s ease;">▼</span>
             <span>${cat.icon}</span>
             <strong>${cat.name}</strong>
           </div>
@@ -739,6 +740,13 @@
 
         const table = document.createElement('div');
         table.className = 'drawer-cat-tools-table';
+
+        header.addEventListener('click', () => {
+          const isCollapsed = table.style.display === 'none';
+          table.style.display = isCollapsed ? 'flex' : 'none';
+          const ch = header.querySelector('.drawer-cat-chevron');
+          if (ch) ch.textContent = isCollapsed ? '▼' : '▶';
+        });
 
         filteredTools.forEach(tool => {
           const isActive = this.activeTools.includes(tool.id);
@@ -1104,16 +1112,25 @@
           headerEl.className = 'customizer-category-header';
           headerEl.innerHTML = `
             <div style="display:flex; align-items:center; gap:8px;">
+              <span class="customizer-cat-chevron" style="font-size:9px; color:var(--text-dim); transition:transform 0.15s ease;">▼</span>
               <span>${cat.icon}</span>
               <strong>${cat.name}</strong>
             </div>
             <span class="category-count-pill">${catTools.length} tools</span>
           `;
-          groupEl.appendChild(headerEl);
 
           const listEl = document.createElement('div');
           listEl.className = 'customizer-tool-list active-list-zone';
           listEl.dataset.category = cat.id;
+
+          headerEl.addEventListener('click', () => {
+            const isCollapsed = listEl.style.display === 'none';
+            listEl.style.display = isCollapsed ? 'flex' : 'none';
+            const ch = headerEl.querySelector('.customizer-cat-chevron');
+            if (ch) ch.textContent = isCollapsed ? '▼' : '▶';
+          });
+
+          groupEl.appendChild(headerEl);
 
           if (catTools.length === 0) {
             const emptyEl = document.createElement('div');
