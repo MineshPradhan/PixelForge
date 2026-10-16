@@ -299,6 +299,32 @@ class PixelForgeApp {
       });
     }
 
+    const exrInput = document.getElementById('browser-exr-input');
+    if (exrInput) {
+      exrInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          this.loadExrFromArrayBuffer(ev.target.result, file.name);
+        };
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    const rawInput = document.getElementById('browser-raw-input');
+    if (rawInput) {
+      rawInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          this.loadRawFromArrayBuffer(ev.target.result, file.name);
+        };
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
     const fontInput = document.getElementById('browser-font-input');
     if (fontInput) {
       fontInput.addEventListener('change', async (e) => {
@@ -1104,6 +1130,169 @@ class PixelForgeApp {
     }
   }
 
+  async savePsbFile(defaultName = 'Project.psb') {
+    try {
+      const psbBytes = PsdEngine.PsdWriter.writePsb({
+        width: this.width,
+        height: this.height,
+        layers: this.layerManager.layers
+      });
+
+      if (this.ipc) {
+        let binaryStr = '';
+        const chunkSz = 32768;
+        for (let i = 0; i < psbBytes.length; i += chunkSz) {
+          const chunk = psbBytes.subarray(i, i + chunkSz);
+          binaryStr += String.fromCharCode.apply(null, chunk);
+        }
+        const rawBase64 = btoa(binaryStr);
+
+        const savedPath = await this.ipc.invoke('dialog:saveFile', {
+          rawBase64,
+          defaultName,
+          format: 'psb'
+        });
+        if (savedPath) {
+          const fname = savedPath.split(/[\\/]/).pop();
+          this.recordOpenedProjectToRecents(fname, savedPath);
+          this.isDirty = false;
+          this.showToast(`Saved PSB: ${fname}`);
+        }
+      } else {
+        const blob = new Blob([psbBytes], { type: 'image/vnd.adobe.photoshop' });
+        const link = document.createElement('a');
+        link.download = defaultName.endsWith('.psb') ? defaultName : `${defaultName}.psb`;
+        link.href = URL.createObjectURL(blob);
+        link.click();
+        URL.revokeObjectURL(link.href);
+        this.recordOpenedProjectToRecents(defaultName);
+        this.isDirty = false;
+        this.showToast('Exported Photoshop PSB Large Document');
+      }
+    } catch (err) {
+      console.error('Failed to save PSB:', err);
+      alert('Error saving PSB format: ' + err.message);
+    }
+  }
+
+  exportCmykTiffFile(defaultName = 'Print_CMYK.tif') {
+    try {
+      const compCan = Utils.createCanvas(this.width, this.height);
+      const compCtx = compCan.getContext('2d');
+      compCtx.fillStyle = '#ffffff';
+      compCtx.fillRect(0, 0, this.width, this.height);
+      compCtx.drawImage(this.mainCanvas, 0, 0);
+      const imgData = compCtx.getImageData(0, 0, this.width, this.height);
+
+      const tiffBytes = CmykExportEngine.encodeCmykTiff(imgData, { gcr: 0.8, totalInkLimit: 300 });
+      const blob = new Blob([tiffBytes], { type: 'image/tiff' });
+      const link = document.createElement('a');
+      link.download = defaultName;
+      link.href = URL.createObjectURL(blob);
+      link.click();
+      URL.revokeObjectURL(link.href);
+      this.showToast('Exported Native 4-Channel CMYK TIFF');
+    } catch (err) {
+      console.error('Failed to export CMYK TIFF:', err);
+      alert('Error exporting CMYK TIFF: ' + err.message);
+    }
+  }
+
+  exportCmykPlatesZip(baseName = 'SeparationPlate') {
+    try {
+      const compCan = Utils.createCanvas(this.width, this.height);
+      const compCtx = compCan.getContext('2d');
+      compCtx.fillStyle = '#ffffff';
+      compCtx.fillRect(0, 0, this.width, this.height);
+      compCtx.drawImage(this.mainCanvas, 0, 0);
+      const imgData = compCtx.getImageData(0, 0, this.width, this.height);
+
+      const plates = CmykExportEngine.generateSeparationPlates(imgData);
+      const plateNames = ['Cyan', 'Magenta', 'Yellow', 'Black'];
+      const plateCanvases = [plates.cyan, plates.magenta, plates.yellow, plates.black];
+
+      plateCanvases.forEach((canvas, idx) => {
+        const name = plateNames[idx];
+        const link = document.createElement('a');
+        link.download = `${baseName}_${name}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      });
+      this.showToast('Exported 4 Prepress Separation Plates (C, M, Y, K)');
+    } catch (err) {
+      console.error('Failed to export separation plates:', err);
+      alert('Error exporting separation plates: ' + err.message);
+    }
+  }
+
+  exportExrFile(defaultName = 'Render_32Bit.exr') {
+    try {
+      const compCan = Utils.createCanvas(this.width, this.height);
+      const compCtx = compCan.getContext('2d');
+      compCtx.drawImage(this.mainCanvas, 0, 0);
+      const imgData = compCtx.getImageData(0, 0, this.width, this.height);
+
+      const exrBytes = OpenExrCodec.encodeExr(imgData, { compression: 'NONE', exposure: 1.0 });
+      const blob = new Blob([exrBytes], { type: 'image/x-exr' });
+      const link = document.createElement('a');
+      link.download = defaultName;
+      link.href = URL.createObjectURL(blob);
+      link.click();
+      URL.revokeObjectURL(link.href);
+      this.showToast('Exported OpenEXR 32-bit Floating Point Image');
+    } catch (err) {
+      console.error('Failed to export EXR:', err);
+      alert('Error exporting OpenEXR: ' + err.message);
+    }
+  }
+
+  loadExrFromArrayBuffer(buffer, filename = 'render.exr') {
+    try {
+      const decoded = OpenExrCodec.decodeExr(buffer);
+      const imgData = OpenExrCodec.tonemapToSrgb(decoded);
+      this.layerManager.resize(decoded.width, decoded.height);
+      this.width = decoded.width;
+      this.height = decoded.height;
+      this.mainCanvas.width = decoded.width;
+      this.mainCanvas.height = decoded.height;
+      this.overlayCanvas.width = decoded.width;
+      this.overlayCanvas.height = decoded.height;
+      const layer = this.layerManager.addLayer(filename.replace(/\.exr$/i, ''));
+      layer.ctx.putImageData(imgData, 0, 0);
+      this.renderComposite();
+      this.zoomFit();
+      this.pushHistoryState(`Open OpenEXR (${decoded.width}×${decoded.height})`);
+      this.showToast(`Loaded OpenEXR 32-bit: ${filename}`);
+    } catch (err) {
+      console.error('Error loading EXR:', err);
+      alert('Error parsing OpenEXR file: ' + err.message);
+    }
+  }
+
+  loadRawFromArrayBuffer(buffer, filename = 'photo.dng') {
+    try {
+      const rawContainer = RawContainerEngine.parseContainer(buffer);
+      const rgb = RawContainerEngine.demosaicToRgb(rawContainer);
+      this.layerManager.resize(rgb.width, rgb.height);
+      this.width = rgb.width;
+      this.height = rgb.height;
+      this.mainCanvas.width = rgb.width;
+      this.mainCanvas.height = rgb.height;
+      this.overlayCanvas.width = rgb.width;
+      this.overlayCanvas.height = rgb.height;
+      const layer = this.layerManager.addLayer(filename.replace(/\.[a-z0-9]+$/i, ''));
+      const imgData = new ImageData(rgb.data, rgb.width, rgb.height);
+      layer.ctx.putImageData(imgData, 0, 0);
+      this.renderComposite();
+      this.zoomFit();
+      this.pushHistoryState(`Open RAW Photo (${rgb.width}×${rgb.height})`);
+      this.showToast(`Loaded RAW ${rawContainer.format || 'DNG'}: ${filename}`);
+    } catch (err) {
+      console.error('Error loading RAW photo:', err);
+      alert('Error parsing RAW container: ' + err.message);
+    }
+  }
+
   async exportSvgFile(defaultName = 'Vector_Export.svg') {
     try {
       const svgStr = PsdEngine.SvgExporter.exportSvg(this.layerManager.layers, this.width, this.height);
@@ -1595,8 +1784,17 @@ class PixelForgeApp {
       case 'open-camera-raw':
         this.openCameraRawDialog();
         break;
+      case 'open-raw-container':
+        document.getElementById('browser-raw-input')?.click();
+        break;
+      case 'open-exr-file':
+        document.getElementById('browser-exr-input')?.click();
+        break;
       case 'save-psd':
         this.savePsdFile();
+        break;
+      case 'save-psb':
+        this.savePsbFile();
         break;
       case 'save-project':
         this.saveProjectFile();
@@ -1619,6 +1817,12 @@ class PixelForgeApp {
       case 'export-tiff':
         this.exportTiffFile();
         break;
+      case 'export-cmyk-tiff':
+        this.exportCmykTiffFile();
+        break;
+      case 'export-cmyk-plates':
+        this.exportCmykPlatesZip();
+        break;
       case 'export-pdf':
         this.exportPdfFile();
         break;
@@ -1630,6 +1834,9 @@ class PixelForgeApp {
         break;
       case 'export-hdr-file':
         this.exportHdrFile();
+        break;
+      case 'export-exr-file':
+        this.exportExrFile();
         break;
       case 'export-video':
         this.openVideoExportModal();

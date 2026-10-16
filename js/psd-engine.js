@@ -82,6 +82,12 @@ class ByteStream {
     return val;
   }
 
+  readUint64() {
+    const val = this.view.getBigUint64(this.pos, false);
+    this.pos += 8;
+    return Number(val);
+  }
+
   readString(len) {
     let str = '';
     for (let i = 0; i < len; i++) {
@@ -135,6 +141,12 @@ class ByteStream {
     this.pos += 4;
   }
 
+  writeUint64(val) {
+    this.ensureCapacity(8);
+    this.view.setBigUint64(this.pos, BigInt(val), false);
+    this.pos += 8;
+  }
+
   writeString(str) {
     this.ensureCapacity(str.length);
     for (let i = 0; i < str.length; i++) {
@@ -177,6 +189,7 @@ const PackBits = {
       } else if (b >= -127) {
         // Repeat next single byte 1 - b times
         const count = 1 - b;
+        if (s >= end) break;
         const val = src[s++];
         for (let i = 0; i < count && d < targetEnd; i++) {
           dst[d++] = val;
@@ -298,7 +311,7 @@ const BlendModes = {
   }
 };
 
-// ── PSD Parser & Reader ──
+/// ── PSD Parser & Reader ──
 class PsdReader {
   static parse(buffer) {
     const stream = new ByteStream(buffer);
@@ -310,9 +323,10 @@ class PsdReader {
     }
 
     const version = stream.readUint16();
-    if (version !== 1) {
-      throw new Error(`Unsupported PSD version: ${version}. Expected 1.`);
+    if (version !== 1 && version !== 2) {
+      throw new Error(`Unsupported PSD/PSB version: ${version}. Expected 1 (PSD) or 2 (PSB).`);
     }
+    const isPsb = (version === 2);
 
     stream.skip(6); // Reserved bytes
     const channels = stream.readUint16();
@@ -359,12 +373,12 @@ class PsdReader {
     stream.pos = imgResEnd;
 
     // 4. Layer and Mask Information Section
-    const layerMaskLen = stream.readUint32();
+    const layerMaskLen = isPsb ? stream.readUint64() : stream.readUint32();
     const layerMaskEnd = stream.pos + layerMaskLen;
     const layers = [];
 
     if (layerMaskLen > 0) {
-      const layerInfoLen = stream.readUint32();
+      const layerInfoLen = isPsb ? stream.readUint64() : stream.readUint32();
       const layerInfoEnd = stream.pos + layerInfoLen;
 
       if (layerInfoLen > 0) {
@@ -384,7 +398,7 @@ class PsdReader {
           const channelInfo = [];
           for (let ch = 0; ch < numChannels; ch++) {
             const chId = stream.readInt16();
-            const chLen = stream.readUint32();
+            const chLen = isPsb ? stream.readUint64() : stream.readUint32();
             channelInfo.push({ id: chId, length: chLen });
           }
 
@@ -509,10 +523,10 @@ class PsdReader {
               rawChannelBuf.set(chunk);
             } else if (compMode === 1) {
               // PackBits RLE
-              // Line lengths array (2 bytes * lH)
+              // Line lengths array (2 bytes * lH in PSD, 4 bytes * lH in PSB)
               const lineLens = [];
               for (let row = 0; row < lH; row++) {
-                lineLens.push(stream.readUint16());
+                lineLens.push(isPsb ? stream.readUint32() : stream.readUint16());
               }
 
               // Decompress each row
@@ -601,7 +615,7 @@ class PsdReader {
         const scanlineLens = [];
         for (let ch = 0; ch < compChannels; ch++) {
           for (let row = 0; row < height; row++) {
-            scanlineLens.push(stream.readUint16());
+            scanlineLens.push(isPsb ? stream.readUint32() : stream.readUint16());
           }
         }
 
@@ -635,20 +649,24 @@ class PsdReader {
       channels,
       dpi,
       layers,
-      compositeRgba
+      compositeRgba,
+      version,
+      isPsb
     };
   }
 }
 
-// ── Photoshop PSD Binary Writer ──
+// ── Photoshop PSD & PSB Binary Writer ──
 class PsdWriter {
   /**
-   * Generates a fully compliant, multi-layer Adobe Photoshop (.psd) binary buffer
+   * Generates a fully compliant, multi-layer Adobe Photoshop (.psd / .psb) binary buffer
    * @param {Object} projectData - { width, height, layers: [{ name, canvas, opacity, blendMode, visible, hasMask, maskCanvas }] }
+   * @param {Object} [options] - { isPsb: boolean }
    */
-  static write(projectData) {
+  static write(projectData, options = {}) {
     const width = projectData.width;
     const height = projectData.height;
+    const isPsb = !!(options.isPsb || projectData.isPsb || projectData.format === 'psb' || width > 30000 || height > 30000);
     const layers = projectData.layers.filter(l => l.type !== 'group'); // Non-group visual layers
     const layerCount = layers.length;
 
@@ -657,11 +675,11 @@ class PsdWriter {
 
     // ── 1. File Header (26 bytes) ──
     stream.writeString('8BPS'); // Signature
-    stream.writeUint16(1);      // Version 1
+    stream.writeUint16(isPsb ? 2 : 1); // Version 1 (PSD) or Version 2 (PSB)
     stream.writeBytes(new Uint8Array(6)); // Reserved
     stream.writeUint16(4);      // Channels: 4 (RGBA)
-    stream.writeUint32(height); // Height
-    stream.writeUint32(width);  // Width
+    stream.writeUint32(height); // Height (up to 300,000 for PSB)
+    stream.writeUint32(width);  // Width (up to 300,000 for PSB)
     stream.writeUint16(8);      // Depth: 8 bits
     stream.writeUint16(3);      // ColorMode: 3 (RGB)
 
@@ -688,10 +706,18 @@ class PsdWriter {
 
     // ── 4. Layer & Mask Information Section ──
     const lmStartPos = stream.pos;
-    stream.writeUint32(0); // Placeholder for total Layer & Mask section length
+    if (isPsb) {
+      stream.writeUint64(0); // 8-byte length placeholder for PSB
+    } else {
+      stream.writeUint32(0); // 4-byte placeholder for PSD
+    }
 
     const layerInfoStartPos = stream.pos;
-    stream.writeUint32(0); // Placeholder for Layer Info length
+    if (isPsb) {
+      stream.writeUint64(0); // 8-byte layer info length placeholder for PSB
+    } else {
+      stream.writeUint32(0); // 4-byte placeholder for PSD
+    }
 
     // Layer count: negative indicates first alpha channel is transparency
     stream.writeInt16(-layerCount);
@@ -728,11 +754,12 @@ class PsdWriter {
           lineLens.push(rle.length);
         }
 
-        // Total channel size = 2 (compMode) + height * 2 (row lens) + sum of row bytes
+        // Total channel size = 2 (compMode) + height * (isPsb ? 4 : 2) (row lens) + sum of row bytes
         const totalRleBytes = lineLens.reduce((a, b) => a + b, 0);
-        const chBuf = new ByteStream(2 + height * 2 + totalRleBytes);
+        const rowLenBytes = isPsb ? 4 : 2;
+        const chBuf = new ByteStream(2 + height * rowLenBytes + totalRleBytes);
         chBuf.writeUint16(1); // Compression: RLE
-        lineLens.forEach(len => chBuf.writeUint16(len));
+        lineLens.forEach(len => isPsb ? chBuf.writeUint32(len) : chBuf.writeUint16(len));
         rleRows.forEach(rle => chBuf.writeBytes(rle));
         return chBuf.getTrimmedUint8Array();
       };
@@ -782,7 +809,11 @@ class PsdWriter {
       // Channel Info headers
       item.channels.forEach(ch => {
         stream.writeInt16(ch.id);
-        stream.writeUint32(ch.bytes.length);
+        if (isPsb) {
+          stream.writeUint64(ch.bytes.length);
+        } else {
+          stream.writeUint32(ch.bytes.length);
+        }
       });
 
       // Blend Mode Signature & Key
@@ -845,13 +876,23 @@ class PsdWriter {
 
     // Patch Layer Info Length
     const layerInfoEndPos = stream.pos;
-    const layerInfoLength = layerInfoEndPos - (layerInfoStartPos + 4);
-    stream.view.setUint32(layerInfoStartPos, layerInfoLength, false);
+    const layerHeaderLen = isPsb ? 8 : 4;
+    const layerInfoLength = layerInfoEndPos - (layerInfoStartPos + layerHeaderLen);
+    if (isPsb) {
+      stream.view.setBigUint64(layerInfoStartPos, BigInt(layerInfoLength), false);
+    } else {
+      stream.view.setUint32(layerInfoStartPos, layerInfoLength, false);
+    }
 
     // Patch Layer and Mask Section Length
     const lmEndPos = stream.pos;
-    const lmTotalLength = lmEndPos - (lmStartPos + 4);
-    stream.view.setUint32(lmStartPos, lmTotalLength, false);
+    const lmHeaderLen = isPsb ? 8 : 4;
+    const lmTotalLength = lmEndPos - (lmStartPos + lmHeaderLen);
+    if (isPsb) {
+      stream.view.setBigUint64(lmStartPos, BigInt(lmTotalLength), false);
+    } else {
+      stream.view.setUint32(lmStartPos, lmTotalLength, false);
+    }
 
     // ── 5. Merged Composite Flat Image Data (RLE) ──
     // Merge layers onto composite canvas
@@ -874,17 +915,19 @@ class PsdWriter {
     const compR = new Uint8Array(compPixels);
     const compG = new Uint8Array(compPixels);
     const compB = new Uint8Array(compPixels);
+    const compA = new Uint8Array(compPixels);
 
     for (let p = 0; p < compPixels; p++) {
       const idx = p * 4;
       compR[p] = compData[idx];
       compG[p] = compData[idx + 1];
       compB[p] = compData[idx + 2];
+      compA[p] = compData[idx + 3];
     }
 
-    // Write RLE compressed planar RGB composite
+    // Write RLE compressed planar RGBA composite
     stream.writeUint16(1); // Compression: RLE
-    const compChannels = [compR, compG, compB];
+    const compChannels = [compR, compG, compB, compA];
     const allRleRows = [];
     const allLineLens = [];
 
@@ -896,10 +939,18 @@ class PsdWriter {
       }
     });
 
-    allLineLens.forEach(len => stream.writeUint16(len));
+    if (isPsb) {
+      allLineLens.forEach(len => stream.writeUint32(len));
+    } else {
+      allLineLens.forEach(len => stream.writeUint16(len));
+    }
     allRleRows.forEach(rle => stream.writeBytes(rle));
 
     return stream.getTrimmedUint8Array();
+  }
+
+  static writePsb(projectData, options = {}) {
+    return PsdWriter.write(projectData, { ...options, isPsb: true });
   }
 }
 

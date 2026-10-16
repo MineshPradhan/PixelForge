@@ -35,8 +35,11 @@
           <div class="menu-row" data-action="open-file"><span class="label">Open File (Image / PSD)...</span><span class="shortcut">Ctrl+O</span></div>
           <div class="menu-row" data-action="open-psd"><span class="label">Open Photoshop PSD...</span></div>
           <div class="menu-row" data-action="open-camera-raw"><span class="label">Open Camera RAW Lab (Bayer CFA)...</span><span class="shortcut">Ctrl+Shift+A</span></div>
+          <div class="menu-row" data-action="open-raw-container"><span class="label">Open RAW Photo (DNG / CR2 / NEF / ARW)...</span></div>
+          <div class="menu-row" data-action="open-exr-file"><span class="label">Open OpenEXR 32-bit (.exr)...</span></div>
           <div class="menu-separator"></div>
           <div class="menu-row" data-action="save-psd"><span class="label">Save as Photoshop PSD...</span></div>
+          <div class="menu-row" data-action="save-psb"><span class="label">Save as Large Document Format (.psb)...</span></div>
           <div class="menu-row" data-action="save-project"><span class="label">Save Project (.pforge)...</span><span class="shortcut">Ctrl+Shift+S</span></div>
           <div class="menu-row" data-action="open-project"><span class="label">Open Project (.pforge)...</span></div>
           <div class="menu-separator"></div>
@@ -46,11 +49,14 @@
           <div class="menu-row" data-action="export-dialog"><span class="label">Export As... (Pro Suite)</span><span class="shortcut">Ctrl+Alt+Shift+W</span></div>
           <div class="menu-row" data-action="export-screens"><span class="label">Export for Screens (Multi-Asset)...</span></div>
           <div class="menu-row" data-action="export-tiff"><span class="label">Export as TIFF...</span></div>
+          <div class="menu-row" data-action="export-cmyk-tiff"><span class="label">Export Native CMYK TIFF (Print)...</span></div>
+          <div class="menu-row" data-action="export-cmyk-plates"><span class="label">Export Prepress Separation Plates (C, M, Y, K)...</span></div>
           <div class="menu-row" data-action="export-pdf"><span class="label">Export as Multi-Page PDF...</span></div>
           <div class="menu-row" data-action="batch-process"><span class="label">Batch Image Processor...</span></div>
           <div class="menu-separator"></div>
           <div class="menu-row" data-action="open-hdr-file"><span class="label">Open Radiance HDR (.hdr)...</span></div>
           <div class="menu-row" data-action="export-hdr-file"><span class="label">Export as Radiance 32-bit HDR (.hdr)...</span></div>
+          <div class="menu-row" data-action="export-exr-file"><span class="label">Export as OpenEXR 32-bit Linear (.exr)...</span></div>
           <div class="menu-row" data-action="export-video"><span class="label">Export as Video (MP4 / WebM)...</span></div>
           <div class="menu-row" data-action="export-lut-cube"><span class="label">Export Color Lookup Table (3D .CUBE)...</span></div>
           <div class="menu-separator"></div>
@@ -4904,11 +4910,13 @@ console.log("Active layer:", active ? active.name : "None");
 
   <!-- Hidden File Inputs -->
   <input type="file" id="browser-file-input" accept="image/*,.psd" style="display:none;">
-  <input type="file" id="browser-psd-input" accept=".psd,image/vnd.adobe.photoshop" style="display:none;">
+  <input type="file" id="browser-psd-input" accept=".psd,.psb,image/vnd.adobe.photoshop" style="display:none;">
   <input type="file" id="browser-project-input" accept=".pforge,application/json" style="display:none;">
   <input type="file" id="browser-place-embedded-input" accept="image/*" style="display:none;">
   <input type="file" id="browser-place-linked-input" accept="image/*" style="display:none;">
   <input type="file" id="browser-hdr-input" accept=".hdr,image/vnd.radiance" style="display:none;">
+  <input type="file" id="browser-exr-input" accept=".exr,image/x-exr" style="display:none;">
+  <input type="file" id="browser-raw-input" accept=".dng,.cr2,.nef,.arw,.raw" style="display:none;">
   <input type="file" id="browser-font-input" accept=".ttf,.otf,.woff,.woff2" style="display:none;">
 
   <!-- Core Scripts -->
@@ -4972,6 +4980,11 @@ console.log("Active layer:", active ? active.name : "None");
   <script src="js/toolbar-customizer.js"></script>
   <script src="js/recent-projects.js"></script>
   <script src="js/bayer-raw.js"></script>
+  <script src="js/raw-container.js"></script>
+  <script src="js/cmyk-export.js"></script>
+  <script src="js/exr-codec.js"></script>
+  <script src="js/typography-advanced.js"></script>
+  <script src="js/webgpu-compute.js"></script>
   <script src="js/tools.js"></script>
   <script src="js/app.js"></script>
 </body>

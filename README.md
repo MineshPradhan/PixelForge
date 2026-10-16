@@ -75,6 +75,39 @@
 - Save your work with all layers, layer masks, names, blend modes, and opacity preserved using **`Ctrl + Shift + S`**.
 - Reopen `.pforge` project bundles anytime to resume editing seamlessly.
 
+### 📸 Camera RAW Binary Container & DNG Decoder Engine
+- High-performance binary parser for standard TIFF-based digital camera raw formats: **Adobe DNG**, **Canon CR2**, **Nikon NEF**, and **Sony ARW**.
+- Reads multi-IFDs, SubIFDs, EXIF/MakerNote tags, and CFA (Color Filter Array) Bayer geometries.
+- Features built-in synthetic & linear sensor CFA encoder and direct bridge to high-fidelity demosaicing.
+
+### 🖨️ Native 4-Channel CMYK TIFF & Prepress Separation Plates
+- Full implementation of separated 4-channel CMYK TIFF format (`PhotometricInterpretation = 5`, `SamplesPerPixel = 4`, `BitsPerSample = [8,8,8,8]`).
+- RGB-to-CMYK conversion engine with configurable **GCR (Gray Component Replacement)** and **Total Ink Limit (TIL $\le 300\%$)** safety clamps.
+- Automated 4-plate prepress film separation generator producing individual film positives for **Cyan**, **Magenta**, **Yellow**, and **Key/Black** plates with PackBits RLE compression.
+
+### 🌌 OpenEXR (`.exr`) 32-Bit Linear Floating Point Codec
+- Native binary encoder and decoder for Industrial Light & Magic's OpenEXR 32-bit floating-point file format (Version 2).
+- Bitwise IEEE 754 16-bit half-float converters and multi-channel scanline processing (`R`, `G`, `B`, `A`).
+- Integrated **ACES Filmic Tonemapping** operator for non-destructive preview and sRGB conversions.
+
+### 📐 Photoshop Large Document Format (.PSB) Support
+- Unlocks support for massive canvas sizes exceeding Photoshop's 30,000 pixel ceiling (up to 300,000px).
+- Complete 64-bit BigInt binary stream architecture with PSB Version 2 headers, 8-byte channel record sizes, and 4-byte RLE scanline tables.
+- Seamless roundtrip compatibility with Adobe Photoshop CC.
+
+### 🔤 Advanced OpenType & Variable Typography Controls
+- Full typographic control over OpenType feature tags: **Standard Ligatures (`liga`)**, **Discretionary Ligatures (`dlig`)**, **Small Capitals (`smcp`)**, **Tabular Numbers (`tnum`)**, **Slashed Zero (`zero`)**, and **Fractions (`frac`)**.
+- Variable font axis controls for Weight (`wght`), Width (`wdth`), and Slant (`slnt`).
+- Precision multi-line editorial layout engine with tracking (letter-spacing), leading, paragraph indentation, and simulated small-caps fallbacks.
+
+### ⚡ WebGPU Hardware Compute Acceleration Engine
+- Direct GPGPU acceleration utilizing next-generation **WGSL (WebGPU Shading Language)** compute shaders:
+  - 2D Separable Gaussian Blur compute kernels.
+  - Bilateral Surface-Preserving Filter (Smart Skin Smoothing).
+  - Unsharp Mask Detail Contrast Enhancement.
+  - Malvar-He-Cutler Bayer RAW Demosaicing.
+- Automatic feature negotiation with transparent WebGL and optimized CPU fallback pipelines.
+
 ---
 
 ## 🎨 Complete Toolset Summary
