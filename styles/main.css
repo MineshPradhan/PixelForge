@@ -157,10 +157,32 @@ body {
   border: 1px solid var(--border-strong);
   border-radius: 6px;
   min-width: 230px;
+  max-height: calc(100vh - var(--header-height, 38px) - var(--status-height, 28px) - 16px);
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 6px 0;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.7);
   z-index: 500;
   margin-top: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+.dropdown-menu::-webkit-scrollbar {
+  width: 5px;
+}
+
+.dropdown-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dropdown-menu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.dropdown-menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
 }
 
 /* Invisible bridge so mouse never loses hover between header and dropdown */
