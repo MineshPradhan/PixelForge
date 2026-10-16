@@ -1,6 +1,6 @@
 {
   "name": "pixelforge",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "PixelForge — Professional Photoshop Alternative for Windows",
   "main": "main.js",
   "scripts": {
