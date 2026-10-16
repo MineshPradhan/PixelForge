@@ -137,47 +137,71 @@ class MagneticLassoEngine {
 class SmartSubjectDetection {
   /**
    * Detects the dominant subject/foreground in an image context using
-   * multi-scale center-surround saliency and boundary prior segmentation.
-   * Returns a binary mask Uint8Array (0 or 255) and bounding box.
+  /**
+   * Detects dominant subject/foreground in an image context or user-defined region.
+   * Supports:
+   * 1. Automatic one-click dominant subject detection across entire canvas.
+   * 2. Manual user-defined regional bounding box or lasso region (Object Selection Tool).
+   * 3. Robust border prior sampling with transparent alpha preservation.
+   * 4. Multi-scale contrast & adaptive thresholding without artificial oval distortion.
+   * Returns a binary mask Uint8Array (0 or 255) and precise bounding box.
    */
-  static detectSubject(ctx, width, height) {
+  static detectSubject(ctx, width, height, region = null) {
     const imgData = ctx.getImageData(0, 0, width, height);
     const data = imgData.data;
     const totalPixels = width * height;
 
-    // 1. Boundary Prior Sample (border pixels are overwhelmingly background)
+    // Define search region bounds
+    const rx = region ? Math.max(0, Math.floor(region.x !== undefined ? region.x : (region.minX || 0))) : 0;
+    const ry = region ? Math.max(0, Math.floor(region.y !== undefined ? region.y : (region.minY || 0))) : 0;
+    const rw = region ? Math.max(1, Math.min(width - rx, Math.ceil(region.width !== undefined ? region.width : (region.w || (region.maxX - rx + 1) || width)))) : width;
+    const rh = region ? Math.max(1, Math.min(height - ry, Math.ceil(region.height !== undefined ? region.height : (region.h || (region.maxY - ry + 1) || height)))) : height;
+
+    // 1. Boundary Prior Sampling along region or canvas edges
     let bgR = 0, bgG = 0, bgB = 0, borderCount = 0;
-    for (let x = 0; x < width; x++) {
-      const topIdx = x * 4;
-      const botIdx = ((height - 1) * width + x) * 4;
-      bgR += data[topIdx] + data[botIdx];
-      bgG += data[topIdx + 1] + data[botIdx + 1];
-      bgB += data[topIdx + 2] + data[botIdx + 2];
-      borderCount += 2;
+    let transparentCount = 0;
+
+    for (let x = rx; x < rx + rw; x++) {
+      const topIdx = (ry * width + x) * 4;
+      const botIdx = ((ry + rh - 1) * width + x) * 4;
+      if (data[topIdx + 3] < 20) transparentCount++;
+      else {
+        bgR += data[topIdx]; bgG += data[topIdx + 1]; bgB += data[topIdx + 2]; borderCount++;
+      }
+      if (data[botIdx + 3] < 20) transparentCount++;
+      else {
+        bgR += data[botIdx]; bgG += data[botIdx + 1]; bgB += data[botIdx + 2]; borderCount++;
+      }
     }
-    for (let y = 1; y < height - 1; y++) {
-      const leftIdx = (y * width) * 4;
-      const rightIdx = (y * width + width - 1) * 4;
-      bgR += data[leftIdx] + data[rightIdx];
-      bgG += data[leftIdx + 1] + data[rightIdx + 1];
-      bgB += data[leftIdx + 2] + data[rightIdx + 2];
-      borderCount += 2;
+    for (let y = ry + 1; y < ry + rh - 1; y++) {
+      const leftIdx = (y * width + rx) * 4;
+      const rightIdx = (y * width + rx + rw - 1) * 4;
+      if (data[leftIdx + 3] < 20) transparentCount++;
+      else {
+        bgR += data[leftIdx]; bgG += data[leftIdx + 1]; bgB += data[leftIdx + 2]; borderCount++;
+      }
+      if (data[rightIdx + 3] < 20) transparentCount++;
+      else {
+        bgR += data[rightIdx]; bgG += data[rightIdx + 1]; bgB += data[rightIdx + 2]; borderCount++;
+      }
     }
+
+    const hasTransparentBackground = transparentCount > (borderCount * 0.2);
     bgR = borderCount > 0 ? bgR / borderCount : 128;
     bgG = borderCount > 0 ? bgG / borderCount : 128;
     bgB = borderCount > 0 ? bgB / borderCount : 128;
 
-    // 2. Compute Saliency Map (distance from background prior + center bias)
+    // 2. Compute Saliency Map within the target region
     const saliency = new Float32Array(totalPixels);
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const maxRadius = Math.hypot(centerX, centerY);
+    const centerX = rx + rw / 2;
+    const centerY = ry + rh / 2;
+    const maxRadius = Math.max(1, Math.hypot(rw / 2, rh / 2));
 
     let maxSal = 0.001;
-    for (let y = 0; y < height; y++) {
+    for (let y = ry; y < ry + rh; y++) {
       const rowIdx = y * width;
       const dy = y - centerY;
-      for (let x = 0; x < width; x++) {
+      for (let x = rx; x < rx + rw; x++) {
         const pIdx = (rowIdx + x) * 4;
         const r = data[pIdx];
         const g = data[pIdx + 1];
@@ -189,16 +213,24 @@ class SmartSubjectDetection {
           continue;
         }
 
-        // Color difference from background
+        // If the layer is isolated on transparent background, visible pixels are 100% subject
+        if (hasTransparentBackground && a > 30) {
+          const sal = 100.0 * (a / 255);
+          saliency[rowIdx + x] = sal;
+          if (sal > maxSal) maxSal = sal;
+          continue;
+        }
+
+        // Color difference from boundary prior
         const cDist = Math.sqrt(
           (r - bgR) * (r - bgR) +
           (g - bgG) * (g - bgG) +
           (b - bgB) * (b - bgB)
         );
 
-        // Center bias (subjects are usually composed near center of canvas)
+        // Subtle center weight (only 5% falloff to break ties without creating an oval distortion)
         const distToCenter = Math.hypot(x - centerX, dy);
-        const centerWeight = 1.0 - (distToCenter / maxRadius) * 0.4;
+        const centerWeight = 1.0 - (distToCenter / maxRadius) * 0.05;
 
         // Alpha channel weight
         const alphaWeight = a / 255;
@@ -209,14 +241,18 @@ class SmartSubjectDetection {
       }
     }
 
-    // 3. Normalize Saliency and compute Otsu threshold
+    // 3. Compute Otsu threshold from active region histogram
     const hist = new Int32Array(256);
-    for (let i = 0; i < totalPixels; i++) {
-      const val = Math.min(255, Math.floor((saliency[i] / maxSal) * 255));
-      hist[val]++;
+    let regionPixels = 0;
+    for (let y = ry; y < ry + rh; y++) {
+      const rowIdx = y * width;
+      for (let x = rx; x < rx + rw; x++) {
+        const val = Math.min(255, Math.floor((saliency[rowIdx + x] / maxSal) * 255));
+        hist[val]++;
+        regionPixels++;
+      }
     }
 
-    // Otsu's optimal thresholding
     let sumTotal = 0;
     for (let t = 0; t < 256; t++) sumTotal += t * hist[t];
 
@@ -229,7 +265,7 @@ class SmartSubjectDetection {
     for (let t = 0; t < 256; t++) {
       wB += hist[t];
       if (wB === 0) continue;
-      wF = totalPixels - wB;
+      wF = regionPixels - wB;
       if (wF === 0) break;
 
       sumB += t * hist[t];
@@ -243,17 +279,18 @@ class SmartSubjectDetection {
       }
     }
 
-    // Keep threshold in reasonable subject bounds
-    const normalizedCutoff = Math.max(30, Math.min(130, threshold)) / 255 * maxSal;
+    const normalizedCutoff = hasTransparentBackground
+      ? 15.0
+      : (Math.max(25, Math.min(130, threshold)) / 255 * maxSal);
 
     // 4. Generate Mask and calculate bounding box
     const mask = new Uint8Array(totalPixels);
     let minX = width, minY = height, maxX = 0, maxY = 0;
     let selectedCount = 0;
 
-    for (let y = 0; y < height; y++) {
+    for (let y = ry; y < ry + rh; y++) {
       const rowIdx = y * width;
-      for (let x = 0; x < width; x++) {
+      for (let x = rx; x < rx + rw; x++) {
         const i = rowIdx + x;
         if (saliency[i] >= normalizedCutoff) {
           mask[i] = 255;
@@ -266,15 +303,45 @@ class SmartSubjectDetection {
       }
     }
 
-    // Fallback if empty
+    // Morphological hole fill for solid subject selection
+    if (selectedCount > 20) {
+      for (let y = ry + 1; y < ry + rh - 1; y++) {
+        const rowIdx = y * width;
+        for (let x = rx + 1; x < rx + rw - 1; x++) {
+          const idx = rowIdx + x;
+          if (mask[idx] === 0 && data[idx * 4 + 3] > 20) {
+            let neighborCount = 0;
+            if (mask[idx - 1]) neighborCount++;
+            if (mask[idx + 1]) neighborCount++;
+            if (mask[idx - width]) neighborCount++;
+            if (mask[idx + width]) neighborCount++;
+            if (mask[idx - width - 1]) neighborCount++;
+            if (mask[idx - width + 1]) neighborCount++;
+            if (mask[idx + width - 1]) neighborCount++;
+            if (mask[idx + width + 1]) neighborCount++;
+            if (neighborCount >= 6) {
+              mask[idx] = 255;
+              selectedCount++;
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+      }
+    }
+
+    // Fallback if empty within region
     if (selectedCount === 0) {
-      minX = Math.floor(width * 0.15);
-      minY = Math.floor(height * 0.15);
-      maxX = Math.floor(width * 0.85);
-      maxY = Math.floor(height * 0.85);
+      minX = rx + Math.floor(rw * 0.15);
+      minY = ry + Math.floor(rh * 0.15);
+      maxX = rx + Math.floor(rw * 0.85);
+      maxY = ry + Math.floor(rh * 0.85);
       for (let y = minY; y <= maxY; y++) {
         for (let x = minX; x <= maxX; x++) {
           mask[y * width + x] = 255;
+          selectedCount++;
         }
       }
     }
@@ -445,8 +512,14 @@ class SelectionRefinementEngine {
 // Module export for Node.js test environment and browser
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { MagneticLassoEngine, SmartSubjectDetection, SelectionRefinementEngine };
-} else if (typeof window !== 'undefined') {
+}
+if (typeof window !== 'undefined') {
   window.MagneticLassoEngine = MagneticLassoEngine;
   window.SmartSubjectDetection = SmartSubjectDetection;
   window.SelectionRefinementEngine = SelectionRefinementEngine;
+}
+if (typeof global !== 'undefined') {
+  global.MagneticLassoEngine = MagneticLassoEngine;
+  global.SmartSubjectDetection = SmartSubjectDetection;
+  global.SelectionRefinementEngine = SelectionRefinementEngine;
 }

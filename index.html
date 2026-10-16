@@ -93,7 +93,8 @@
           <div class="menu-row" data-action="invert-selection"><span class="label">Invert Selection</span><span class="shortcut">Ctrl+Shift+I</span></div>
           <div class="menu-row" data-action="color-range-selection"><span class="label">Color Range Selection...</span></div>
           <div class="menu-separator"></div>
-          <div class="menu-row" data-action="select-subject"><span class="label">Select Subject (AI Saliency)</span></div>
+          <div class="menu-row" data-action="select-subject"><span class="label">Select Subject (Auto Image)</span></div>
+          <div class="menu-row" data-action="select-object-tool"><span class="label">Object Selection Tool (Manual Area)</span><span class="shortcut">W</span></div>
           <div class="menu-row" data-action="refine-edge"><span class="label">Select and Mask (Refine Edge)...</span></div>
           <div class="menu-row" data-action="toggle-quick-mask"><span class="label">Edit in Quick Mask Mode</span><span class="shortcut">Q</span></div>
           <div class="menu-separator"></div>
@@ -469,6 +470,25 @@
       <div class="divider-v"></div>
       <button id="btn-opt-wand-select-subject" class="btn-primary-sm" title="One-Click Dominant Subject Detection (AI Saliency)">✨ Select Subject</button>
       <button id="btn-opt-wand-refine-edge" class="btn-ghost-sm" title="Refine Edge & Mask Boundary">Select and Mask...</button>
+    </div>
+
+    <!-- Object Selection Options (Photoshop Parity) -->
+    <div class="tool-option-group hidden" id="opt-group-object-selection">
+      <label>Mode:
+        <select id="obj-sel-mode-select">
+          <option value="rectangle" selected>Rectangle (Drag box around subject)</option>
+          <option value="lasso">Lasso (Draw rough loop)</option>
+        </select>
+      </label>
+      <div class="divider-v"></div>
+      <label>Sensitivity:
+        <input type="range" id="obj-sel-tolerance" min="10" max="80" value="35">
+        <input type="number" id="obj-sel-tolerance-input" class="tool-num-input" min="10" max="80" value="35" title="Detection sensitivity">
+      </label>
+      <div class="divider-v"></div>
+      <button id="btn-opt-obj-select-subject" class="btn-primary-sm" title="Auto Select Dominant Subject across entire image">✨ Select Subject</button>
+      <button id="btn-opt-obj-refine-edge" class="btn-ghost-sm" title="Refine Edge & Mask Boundary">Select and Mask...</button>
+      <span style="font-size: 11px; color: var(--text-muted); margin-left: 6px;">Drag around subject to select &bull; Click detected object</span>
     </div>
 
     <!-- Magnetic Lasso Options -->

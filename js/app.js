@@ -1741,9 +1741,15 @@ class PixelForgeApp {
         break;
       case 'select-all':
         this.toolManager.selection = { type: 'rect', x: 0, y: 0, w: this.width, h: this.height };
+        if (this.toolManager.renderMarchingAnts) this.toolManager.renderMarchingAnts();
         break;
       case 'deselect':
         this.toolManager.clearSelection();
+        break;
+      case 'invert-selection':
+        if (this.toolManager && this.toolManager.invertSelection) {
+          this.toolManager.invertSelection();
+        }
         break;
       case 'content-aware-fill':
         if (this.toolManager && this.toolManager.selection) {
@@ -1761,6 +1767,11 @@ class PixelForgeApp {
       case 'select-subject':
         if (this.toolManager && this.toolManager.selectSubject) {
           this.toolManager.selectSubject();
+        }
+        break;
+      case 'select-object-tool':
+        if (this.toolManager && this.toolManager.setTool) {
+          this.toolManager.setTool('select-object');
         }
         break;
       case 'refine-edge':

@@ -133,6 +133,13 @@ class ToolManager {
     this.activeCropRect = null;
     this.cropDragHandle = null;
     this.cropDragStart = null;
+
+    // Object Selection Tool state (Photoshop Parity)
+    this.objSelMode = 'rectangle'; // 'rectangle' | 'lasso'
+    this.objSelTolerance = 35;
+    this.objSelStart = null;
+    this.objSelDragging = false;
+    this.objSelPoints = [];
   }
 
   init() {
@@ -380,6 +387,12 @@ class ToolManager {
     };
     bindSelActions('btn-opt-wand-select-subject', 'btn-opt-wand-refine-edge');
     bindSelActions('btn-opt-mag-select-subject', 'btn-opt-mag-refine-edge');
+    bindSelActions('btn-opt-obj-select-subject', 'btn-opt-obj-refine-edge');
+
+    // Object Selection Tool options
+    const objSelMode = document.getElementById('obj-sel-mode-select');
+    if (objSelMode) objSelMode.addEventListener('change', () => this.objSelMode = objSelMode.value);
+    bindNumericControl('obj-sel-tolerance', 'obj-sel-tolerance-input', null, 'objSelTolerance', 10, 80, '');
 
     // Free Transform Commit/Cancel buttons
     const btnCommit = document.getElementById('btn-commit-transform');
@@ -1036,9 +1049,11 @@ class ToolManager {
     const optPatch = document.getElementById('opt-group-patch');
     const optCAMove = document.getElementById('opt-group-content-aware-move');
     const optCrop = document.getElementById('opt-group-crop');
+    const optObjSel = document.getElementById('opt-group-object-selection');
 
     if (optBrush) optBrush.classList.toggle('hidden', !['brush', 'pencil', 'eraser', 'mixer-brush'].includes(toolName));
     if (optCrop) optCrop.classList.toggle('hidden', toolName !== 'crop');
+    if (optObjSel) optObjSel.classList.toggle('hidden', toolName !== 'select-object');
     if (optMixer) optMixer.classList.toggle('hidden', toolName !== 'mixer-brush');
     if (optClone) optClone.classList.toggle('hidden', toolName !== 'clone-stamp');
     if (optDodgeBurn) optDodgeBurn.classList.toggle('hidden', !['dodge', 'burn'].includes(toolName));
@@ -1299,30 +1314,9 @@ class ToolManager {
         break;
 
       case 'select-object':
-        if (this.app.objectFinderEngine) {
-          let found = this.app.objectFinderEngine.hoveredContour;
-          if (!found) {
-            const compositeCtx = this.app.mainCtx;
-            if (compositeCtx) {
-              const imgData = compositeCtx.getImageData(0, 0, this.app.width, this.app.height);
-              found = this.app.objectFinderEngine.detectObjectAt(imgData, coords.x, coords.y, 35);
-            }
-          }
-          if (found && found.bounds) {
-            const b = found.bounds;
-            this.selection = {
-              type: 'rect',
-              x: b.x,
-              y: b.y,
-              w: b.w,
-              h: b.h
-            };
-            this.renderMarchingAnts();
-            this.app.renderComposite();
-            if (this.app.contextualTaskBar) this.app.contextualTaskBar.update();
-            this.app.pushHistoryState('Object Selection');
-          }
-        }
+        this.objSelStart = { x: coords.x, y: coords.y };
+        this.objSelDragging = true;
+        this.objSelPoints = [{ x: coords.x, y: coords.y }];
         break;
 
       case 'lasso-freehand':
@@ -1543,11 +1537,19 @@ class ToolManager {
     }
 
     if (this.currentTool === 'select-object') {
-      if (this.app.objectFinderEngine) {
+      if (this.isMouseDown && this.objSelDragging && this.objSelStart) {
+        if (this.objSelMode === 'lasso') {
+          this.objSelPoints.push({ x: coords.x, y: coords.y });
+          this.renderObjectSelectionLasso(this.objSelPoints);
+        } else {
+          this.renderObjectSelectionBox(this.objSelStart, coords);
+        }
+      } else if (this.app.objectFinderEngine) {
         const compositeCtx = this.app.mainCtx;
         if (compositeCtx) {
           const imgData = compositeCtx.getImageData(0, 0, this.app.width, this.app.height);
-          const found = this.app.objectFinderEngine.detectObjectAt(imgData, coords.x, coords.y, 35);
+          const tol = this.objSelTolerance || 35;
+          const found = this.app.objectFinderEngine.detectObjectAt(imgData, coords.x, coords.y, tol);
           this.app.objectFinderEngine.hoveredContour = found;
           this.app.renderGuidesAndOverlays();
         }
@@ -1799,6 +1801,10 @@ class ToolManager {
       case 'select-rect':
       case 'select-ellipse':
         this.finalizeSelection(coords.x, coords.y);
+        break;
+
+      case 'select-object':
+        this.finalizeObjectSelection(coords.x, coords.y);
         break;
 
       case 'lasso-freehand':
@@ -4074,37 +4080,316 @@ class ToolManager {
     loop();
   }
 
+  buildSelectionPath(sel) {
+    if (!sel || !sel.mask) return;
+    const w = this.app.width;
+    const h = this.app.height;
+    const mask = sel.mask;
+    const minX = Math.max(0, sel.x || 0);
+    const minY = Math.max(0, sel.y || 0);
+    const maxX = Math.min(w - 1, (sel.x || 0) + (sel.w || w) - 1);
+    const maxY = Math.min(h - 1, (sel.y || 0) + (sel.h || h) - 1);
+
+    const hasPath2D = typeof Path2D !== 'undefined';
+    const path = hasPath2D ? new Path2D() : null;
+    const segments = [];
+
+    // Horizontal boundary edges between rows
+    for (let y = minY; y <= maxY + 1; y++) {
+      let runStart = -1;
+      for (let x = minX; x <= maxX; x++) {
+        const top = (y > 0 && y - 1 < h) ? (mask[(y - 1) * w + x] > 128) : false;
+        const bot = (y < h) ? (mask[y * w + x] > 128) : false;
+        if (top !== bot) {
+          if (runStart === -1) runStart = x;
+        } else {
+          if (runStart !== -1) {
+            if (path) { path.moveTo(runStart, y); path.lineTo(x, y); }
+            else { segments.push(runStart, y, x, y); }
+            runStart = -1;
+          }
+        }
+      }
+      if (runStart !== -1) {
+        if (path) { path.moveTo(runStart, y); path.lineTo(maxX + 1, y); }
+        else { segments.push(runStart, y, maxX + 1, y); }
+      }
+    }
+
+    // Vertical boundary edges between columns
+    for (let x = minX; x <= maxX + 1; x++) {
+      let runStart = -1;
+      for (let y = minY; y <= maxY; y++) {
+        const left = (x > 0 && x - 1 < w) ? (mask[y * w + (x - 1)] > 128) : false;
+        const right = (x < w) ? (mask[y * w + x] > 128) : false;
+        if (left !== right) {
+          if (runStart === -1) runStart = y;
+        } else {
+          if (runStart !== -1) {
+            if (path) { path.moveTo(x, runStart); path.lineTo(x, y); }
+            else { segments.push(x, runStart, x, y); }
+            runStart = -1;
+          }
+        }
+      }
+      if (runStart !== -1) {
+        if (path) { path.moveTo(x, runStart); path.lineTo(x, maxY + 1); }
+        else { segments.push(x, runStart, x, maxY + 1); }
+      }
+    }
+
+    if (path) sel._path = path;
+    else sel._segments = segments;
+  }
+
   renderMarchingAnts() {
     this.clearOverlay();
     const ctx = this.app.overlayCtx;
     const sel = this.selection;
     if (!sel) return;
 
+    if (sel.mask && !sel._path && !sel._segments) {
+      this.buildSelectionPath(sel);
+    }
+
     ctx.save();
     ctx.lineWidth = 1.5;
+
+    const drawAntsShape = () => {
+      if (sel.type === 'rect') {
+        ctx.strokeRect(sel.x, sel.y, sel.w, sel.h);
+      } else if (sel.type === 'ellipse') {
+        ctx.beginPath();
+        ctx.ellipse(sel.x + sel.w / 2, sel.y + sel.h / 2, Math.max(1, sel.w / 2), Math.max(1, sel.h / 2), 0, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (sel._path) {
+        ctx.stroke(sel._path);
+      } else if (sel._segments) {
+        ctx.beginPath();
+        const segs = sel._segments;
+        for (let i = 0; i < segs.length; i += 4) {
+          ctx.moveTo(segs[i], segs[i + 1]);
+          ctx.lineTo(segs[i + 2], segs[i + 3]);
+        }
+        ctx.stroke();
+      } else if (sel.contour && sel.contour.length >= 2) {
+        ctx.beginPath();
+        ctx.moveTo(sel.contour[0].x, sel.contour[0].y);
+        for (let i = 1; i < sel.contour.length; i++) {
+          ctx.lineTo(sel.contour[i].x, sel.contour[i].y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+      } else {
+        ctx.strokeRect(sel.x, sel.y, sel.w, sel.h);
+      }
+    };
 
     ctx.strokeStyle = '#000000';
     ctx.setLineDash([4, 4]);
     ctx.lineDashOffset = this.marchingAntsOffset;
-    if (sel.type === 'rect') {
-      ctx.strokeRect(sel.x, sel.y, sel.w, sel.h);
-    } else {
-      ctx.beginPath();
-      ctx.ellipse(sel.x + sel.w / 2, sel.y + sel.h / 2, sel.w / 2, sel.h / 2, 0, 0, Math.PI * 2);
-      ctx.stroke();
-    }
+    drawAntsShape();
 
     ctx.strokeStyle = '#ffffff';
     ctx.lineDashOffset = this.marchingAntsOffset + 4;
-    if (sel.type === 'rect') {
-      ctx.strokeRect(sel.x, sel.y, sel.w, sel.h);
-    } else {
-      ctx.beginPath();
-      ctx.ellipse(sel.x + sel.w / 2, sel.y + sel.h / 2, sel.w / 2, sel.h / 2, 0, 0, Math.PI * 2);
-      ctx.stroke();
-    }
+    drawAntsShape();
 
     ctx.restore();
+  }
+
+  renderObjectSelectionBox(start, cur) {
+    this.clearOverlay();
+    const ctx = this.app.overlayCtx;
+    if (!ctx) return;
+
+    const x = Math.min(start.x, cur.x);
+    const y = Math.min(start.y, cur.y);
+    const w = Math.abs(cur.x - start.x);
+    const h = Math.abs(cur.y - start.y);
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.2)';
+    ctx.fillRect(x, y, w, h);
+
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.lineDashOffset = this.marchingAntsOffset || 0;
+    ctx.strokeRect(x, y, w, h);
+
+    ctx.restore();
+  }
+
+  renderObjectSelectionLasso(points) {
+    this.clearOverlay();
+    const ctx = this.app.overlayCtx;
+    if (!ctx || points.length < 2) return;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.closePath();
+
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.2)';
+    ctx.fill();
+
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.lineDashOffset = this.marchingAntsOffset || 0;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  finalizeObjectSelection(endX, endY) {
+    if (!this.objSelDragging && !this.objSelStart) return;
+    this.objSelDragging = false;
+    this.clearOverlay();
+
+    const startX = this.objSelStart ? this.objSelStart.x : endX;
+    const startY = this.objSelStart ? this.objSelStart.y : endY;
+    const dist = Math.hypot(endX - startX, endY - startY);
+    const activeLayer = this.app.layerManager.getActiveLayer();
+    if (!activeLayer) return;
+
+    const w = this.app.width;
+    const h = this.app.height;
+
+    // Single click (distance < 6px): select object directly under cursor
+    if (dist < 6) {
+      if (this.app.objectFinderEngine) {
+        const compositeCtx = this.app.mainCtx || activeLayer.ctx;
+        const imgData = compositeCtx.getImageData(0, 0, w, h);
+        const tol = this.objSelTolerance || 35;
+        const found = this.app.objectFinderEngine.detectObjectAt(imgData, endX, endY, tol);
+        if (found && found.bounds) {
+          this.selection = {
+            type: 'path',
+            x: found.bounds.x,
+            y: found.bounds.y,
+            w: found.bounds.w,
+            h: found.bounds.h,
+            mask: found.mask
+          };
+          this.renderMarchingAnts();
+          this.app.renderComposite();
+          if (this.app.contextualTaskBar) this.app.contextualTaskBar.update();
+          this.app.pushHistoryState('Object Selection');
+          return;
+        }
+      }
+    }
+
+    // Dragged Region (Rectangle or Lasso):
+    let region = null;
+    if (this.objSelMode === 'lasso' && this.objSelPoints && this.objSelPoints.length >= 3) {
+      let minX = w, minY = h, maxX = 0, maxY = 0;
+      for (const p of this.objSelPoints) {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+      }
+      region = {
+        x: Math.max(0, Math.floor(minX)),
+        y: Math.max(0, Math.floor(minY)),
+        width: Math.max(1, Math.ceil(maxX - minX + 1)),
+        height: Math.max(1, Math.ceil(maxY - minY + 1))
+      };
+    } else {
+      const minX = Math.max(0, Math.min(startX, endX));
+      const minY = Math.max(0, Math.min(startY, endY));
+      const rw = Math.abs(endX - startX);
+      const rh = Math.abs(endY - startY);
+      if (rw < 4 && rh < 4) return;
+      region = {
+        x: Math.floor(minX),
+        y: Math.floor(minY),
+        width: Math.max(1, Math.ceil(rw)),
+        height: Math.max(1, Math.ceil(rh))
+      };
+    }
+
+    if (typeof SmartSubjectDetection !== 'undefined') {
+      const res = SmartSubjectDetection.detectSubject(activeLayer.ctx, w, h, region);
+      if (res && res.selectedCount > 0) {
+        this.selection = {
+          type: 'path',
+          x: res.bounds.x,
+          y: res.bounds.y,
+          w: res.bounds.width,
+          h: res.bounds.height,
+          mask: res.mask
+        };
+        this.renderMarchingAnts();
+        this.app.renderComposite();
+        if (this.app.contextualTaskBar) this.app.contextualTaskBar.update();
+        this.app.pushHistoryState('Manual Subject Selection');
+      }
+    }
+
+    this.objSelStart = null;
+    this.objSelPoints = [];
+  }
+
+  invertSelection() {
+    const w = this.app.width;
+    const h = this.app.height;
+    if (!this.selection) {
+      this.selection = { type: 'rect', x: 0, y: 0, w, h };
+      this.renderMarchingAnts();
+      this.app.pushHistoryState('Select All');
+      return;
+    }
+
+    const sel = this.selection;
+    const newMask = new Uint8Array(w * h);
+
+    if (sel.mask) {
+      for (let i = 0; i < w * h; i++) {
+        newMask[i] = sel.mask[i] > 128 ? 0 : 255;
+      }
+    } else if (sel.type === 'rect') {
+      newMask.fill(255);
+      const endX = Math.min(w, sel.x + sel.w);
+      const endY = Math.min(h, sel.y + sel.h);
+      for (let y = Math.max(0, sel.y); y < endY; y++) {
+        for (let x = Math.max(0, sel.x); x < endX; x++) {
+          newMask[y * w + x] = 0;
+        }
+      }
+    } else if (sel.type === 'ellipse') {
+      newMask.fill(255);
+      const cx = sel.x + sel.w / 2;
+      const cy = sel.y + sel.h / 2;
+      const rx = Math.max(1, sel.w / 2);
+      const ry = Math.max(1, sel.h / 2);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const nx = (x - cx) / rx;
+          const ny = (y - cy) / ry;
+          if (nx * nx + ny * ny <= 1.0) newMask[y * w + x] = 0;
+        }
+      }
+    } else {
+      newMask.fill(255);
+    }
+
+    this.selection = {
+      type: 'path',
+      x: 0,
+      y: 0,
+      w,
+      h,
+      mask: newMask
+    };
+    this.renderMarchingAnts();
+    this.app.pushHistoryState('Invert Selection');
+    if (this.app.contextualTaskBar) this.app.contextualTaskBar.update();
   }
 
   // ══════════════════════════════════════════════════════════════════════

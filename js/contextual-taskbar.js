@@ -180,6 +180,9 @@ class ContextualTaskBar {
                 html += `
                     <span class="taskbar-label" title="${name}">Layer: <b>${name.length > 14 ? name.substring(0, 12) + '...' : name}</b></span>
                     <div class="taskbar-divider"></div>
+                    <button class="taskbar-btn taskbar-btn-primary" id="tb-select-subject" title="One-Click Dominant Subject Detection"><span class="sparkle-icon">✨</span> Select Subject</button>
+                    <button class="taskbar-btn" id="tb-object-select-tool" title="Manual Area Object Selection Tool (W)">🎯 Object Select</button>
+                    <div class="taskbar-divider"></div>
                     <button class="taskbar-btn" id="tb-quick-components" title="Open Tool Components Drawer">🎛️ Tool Components</button>
                     <button class="taskbar-btn" id="tb-quick-shortcuts" title="View All Keyboard Shortcuts">★ All Shortcuts</button>
                     <button class="taskbar-btn" id="tb-new-layer">+ New Layer</button>
@@ -307,6 +310,8 @@ class ContextualTaskBar {
         }
 
         // Default actions
+        const selSubBtn = this.el.querySelector('#tb-select-subject');
+        const objSelBtn = this.el.querySelector('#tb-object-select-tool');
         const newLayer = this.el.querySelector('#tb-new-layer');
         const dupLayer = this.el.querySelector('#tb-dup-layer');
         const quickCam = this.el.querySelector('#tb-quick-camraw');
@@ -314,6 +319,21 @@ class ContextualTaskBar {
         const quickComp = this.el.querySelector('#tb-quick-components');
         const quickShortcuts = this.el.querySelector('#tb-quick-shortcuts');
         const minBtn = this.el.querySelector('#tb-min-toggle');
+
+        if (selSubBtn) {
+            selSubBtn.onclick = () => {
+                if (this.app.toolManager && this.app.toolManager.selectSubject) {
+                    this.app.toolManager.selectSubject();
+                }
+            };
+        }
+        if (objSelBtn) {
+            objSelBtn.onclick = () => {
+                if (this.app.toolManager && this.app.toolManager.setTool) {
+                    this.app.toolManager.setTool('select-object');
+                }
+            };
+        }
 
         if (newLayer) newLayer.onclick = () => this.app.handleMenuAction('new-layer');
         if (dupLayer) dupLayer.onclick = () => this.app.handleMenuAction('duplicate-layer');
