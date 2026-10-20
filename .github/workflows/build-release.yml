@@ -57,9 +57,7 @@ jobs:
         run: npm ci
 
       - name: Build Electron Windows Distribution (NSIS & Portable)
-        run: npm run dist
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --publish never
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
@@ -67,7 +65,6 @@ jobs:
           name: pixelforge-windows-binaries
           path: |
             dist/*.exe
-            dist/*.blockmap
           retention-days: 14
 
   build-linux:
@@ -95,9 +92,7 @@ jobs:
         run: npm ci
 
       - name: Build Electron Linux Distribution (AppImage, DEB, tar.gz)
-        run: npx electron-builder --linux
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --linux --publish never
 
       - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v4
@@ -129,9 +124,7 @@ jobs:
         run: npm ci
 
       - name: Build Electron macOS Distribution (DMG & ZIP)
-        run: npx electron-builder --mac
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --mac --publish never
 
       - name: Upload macOS Artifacts
         uses: actions/upload-artifact@v4
@@ -140,7 +133,6 @@ jobs:
           path: |
             dist/*.dmg
             dist/*.zip
-            dist/*.blockmap
           retention-days: 14
 
   publish-release:
@@ -185,5 +177,7 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
+          overwrite_files: true
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

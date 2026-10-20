@@ -13,6 +13,7 @@
   "build": {
     "appId": "com.pixelforge.studio",
     "productName": "PixelForge Studio",
+    "publish": null,
     "win": {
       "target": [
         "nsis",
