@@ -4969,3 +4969,21 @@ body.dock-resizing * {
 
 
 
+
+/* ════════ macOS Native Window & Typography Adaptations ════════ */
+body.platform-mac #app-header {
+  padding-left: 78px; /* Leave space for macOS native window control traffic lights */
+}
+
+body.platform-mac {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body.platform-mac kbd.shortcut-kbd {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+  letter-spacing: 0.5px;
+  font-size: 11px;
+  padding: 1px 5px;
+}

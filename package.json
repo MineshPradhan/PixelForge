@@ -1,7 +1,7 @@
 {
   "name": "pixelforge",
   "version": "1.0.1",
-  "description": "PixelForge — Professional Photoshop Alternative for Windows",
+  "description": "PixelForge — Professional Photoshop Alternative for macOS, Windows & Linux",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -39,6 +39,52 @@
     },
     "directories": {
       "output": "dist"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64",
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64",
+            "universal"
+          ]
+        }
+      ],
+      "category": "public.app-category.graphics-design",
+      "icon": "assets/icon.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "darkModeSupport": true,
+      "minimumSystemVersion": "10.15.0"
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 380
+      }
     }
   },
   "keywords": [

@@ -17,7 +17,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest ]
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
         node-version: [ 20.x, 22.x ]
 
     steps:
@@ -108,9 +108,43 @@ jobs:
             dist/*.tar.gz
           retention-days: 14
 
+  build-macos:
+    name: Build macOS Packages (DMG & ZIP for Apple Silicon & Intel)
+    needs: test
+    runs-on: macos-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Electron macOS Distribution (DMG & ZIP)
+        run: npx electron-builder --mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixelforge-macos-binaries
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.blockmap
+          retention-days: 14
+
   publish-release:
     name: Publish GitHub Release
-    needs: [ build-windows, build-linux ]
+    needs: [ build-windows, build-linux, build-macos ]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
 
@@ -128,6 +162,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: pixelforge-linux-binaries
+          path: release-assets
+
+      - name: Download macOS Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: pixelforge-macos-binaries
           path: release-assets
 
       - name: Generate Checksums (SHA-256)

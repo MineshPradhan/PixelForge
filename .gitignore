@@ -4,8 +4,9 @@ jspm_packages/
 
 # Production & Packaging Builds
 dist/
-build/
 out/
+build/*
+!build/entitlements.mac.plist
 *.exe
 *.dmg
 *.app

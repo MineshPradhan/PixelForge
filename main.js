@@ -1,11 +1,300 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 let mainWindow;
 
+function buildApplicationMenu() {
+  const isMac = process.platform === 'darwin';
+
+  const sendAction = (action) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('app:menu-action', action);
+    }
+  };
+
+  const template = [
+    ...(isMac ? [{
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        {
+          label: 'Preferences / Keyboard Shortcuts...',
+          accelerator: 'Cmd+,',
+          click: () => sendAction('open-keyboard-shortcuts')
+        },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    }] : []),
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Canvas...',
+          accelerator: isMac ? 'Cmd+N' : 'Ctrl+N',
+          click: () => sendAction('new-file')
+        },
+        {
+          label: 'Open Image / Project...',
+          accelerator: isMac ? 'Cmd+O' : 'Ctrl+O',
+          click: () => sendAction('open-file')
+        },
+        {
+          label: 'Open Camera RAW Lab (Bayer CFA)...',
+          accelerator: isMac ? 'Cmd+Shift+A' : 'Ctrl+Shift+A',
+          click: () => sendAction('open-camera-raw')
+        },
+        { type: 'separator' },
+        {
+          label: 'Save Project (.pforge)...',
+          accelerator: isMac ? 'Cmd+Shift+S' : 'Ctrl+Shift+S',
+          click: () => sendAction('save-project')
+        },
+        {
+          label: 'Export as PNG...',
+          accelerator: isMac ? 'Cmd+E' : 'Ctrl+E',
+          click: () => sendAction('export-png')
+        },
+        {
+          label: 'Export As... (Pro Suite)',
+          accelerator: isMac ? 'Cmd+Alt+Shift+W' : 'Ctrl+Alt+Shift+W',
+          click: () => sendAction('export-dialog')
+        },
+        { type: 'separator' },
+        {
+          label: 'Close Project',
+          accelerator: isMac ? 'Cmd+W' : 'Ctrl+W',
+          click: () => sendAction('close-project')
+        },
+        ...(!isMac ? [
+          { type: 'separator' },
+          { role: 'quit' }
+        ] : [])
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        {
+          label: 'Undo',
+          accelerator: isMac ? 'Cmd+Z' : 'Ctrl+Z',
+          click: () => sendAction('undo')
+        },
+        {
+          label: 'Redo',
+          accelerator: isMac ? 'Cmd+Shift+Z' : 'Ctrl+Y',
+          click: () => sendAction('redo')
+        },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        {
+          label: 'Free Transform',
+          accelerator: isMac ? 'Cmd+T' : 'Ctrl+T',
+          click: () => sendAction('free-transform')
+        },
+        {
+          label: 'Perspective Warp...',
+          click: () => sendAction('perspective-warp')
+        },
+        {
+          label: 'Warp Transform (Bézier Mesh)...',
+          accelerator: isMac ? 'Cmd+Shift+W' : 'Ctrl+Shift+W',
+          click: () => sendAction('transform-warp')
+        },
+        {
+          label: 'Content-Aware Fill...',
+          accelerator: 'Shift+F5',
+          click: () => sendAction('content-aware-fill')
+        },
+        {
+          label: 'Generative Fill (AI)...',
+          accelerator: isMac ? 'Cmd+Alt+G' : 'Ctrl+Alt+G',
+          click: () => sendAction('generative-fill')
+        },
+        { type: 'separator' },
+        {
+          label: 'Keyboard Shortcuts...',
+          accelerator: isMac ? 'Cmd+Alt+Shift+K' : 'Ctrl+Alt+Shift+K',
+          click: () => sendAction('open-keyboard-shortcuts')
+        }
+      ]
+    },
+    {
+      label: 'Image',
+      submenu: [
+        {
+          label: 'Curves & Levels...',
+          accelerator: isMac ? 'Cmd+M' : 'Ctrl+M',
+          click: () => sendAction('filter-curves')
+        },
+        {
+          label: 'Color Balance...',
+          accelerator: isMac ? 'Cmd+B' : 'Ctrl+B',
+          click: () => sendAction('filter-color-balance')
+        },
+        {
+          label: '3-Way Color Wheels Grading...',
+          click: () => sendAction('color-wheels-grading')
+        },
+        {
+          label: 'Exposure Fusion (Mertens HDR)...',
+          click: () => sendAction('automate-exposure-fusion')
+        }
+      ]
+    },
+    {
+      label: 'Layer',
+      submenu: [
+        {
+          label: 'New Layer',
+          accelerator: isMac ? 'Cmd+Shift+N' : 'Ctrl+Shift+N',
+          click: () => sendAction('new-layer')
+        },
+        {
+          label: 'Duplicate Layer',
+          accelerator: isMac ? 'Cmd+J' : 'Ctrl+J',
+          click: () => sendAction('duplicate-layer')
+        },
+        {
+          label: 'Create / Release Clipping Mask',
+          accelerator: isMac ? 'Cmd+Alt+G' : 'Ctrl+Alt+G',
+          click: () => sendAction('toggle-clipping-mask')
+        },
+        {
+          label: 'Merge Down',
+          accelerator: isMac ? 'Cmd+E' : 'Ctrl+E',
+          click: () => sendAction('merge-down')
+        },
+        {
+          label: 'Merge Visible',
+          accelerator: isMac ? 'Cmd+Shift+E' : 'Ctrl+Shift+E',
+          click: () => sendAction('merge-visible')
+        }
+      ]
+    },
+    {
+      label: 'Select',
+      submenu: [
+        {
+          label: 'Select All',
+          accelerator: isMac ? 'Cmd+A' : 'Ctrl+A',
+          click: () => sendAction('select-all')
+        },
+        {
+          label: 'Deselect',
+          accelerator: isMac ? 'Cmd+D' : 'Ctrl+D',
+          click: () => sendAction('deselect')
+        },
+        {
+          label: 'Invert Selection',
+          accelerator: isMac ? 'Cmd+Shift+I' : 'Ctrl+Shift+I',
+          click: () => sendAction('invert-selection')
+        },
+        {
+          label: 'Select Subject (AI)',
+          click: () => sendAction('select-subject')
+        },
+        {
+          label: 'Select and Mask (Refine Edge)...',
+          click: () => sendAction('refine-edge')
+        }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        {
+          label: 'Zoom In',
+          accelerator: isMac ? 'Cmd+=' : 'Ctrl+=',
+          click: () => sendAction('zoom-in')
+        },
+        {
+          label: 'Zoom Out',
+          accelerator: isMac ? 'Cmd+-' : 'Ctrl+-',
+          click: () => sendAction('zoom-out')
+        },
+        {
+          label: '100% Actual Size',
+          accelerator: isMac ? 'Cmd+1' : 'Ctrl+1',
+          click: () => sendAction('zoom-100')
+        },
+        {
+          label: 'Fit on Screen',
+          accelerator: isMac ? 'Cmd+0' : 'Ctrl+0',
+          click: () => sendAction('zoom-fit')
+        },
+        { type: 'separator' },
+        {
+          label: 'Show Rulers',
+          accelerator: isMac ? 'Cmd+R' : 'Ctrl+R',
+          click: () => sendAction('toggle-rulers')
+        },
+        {
+          label: 'Show Grid',
+          accelerator: isMac ? "Cmd+'" : "Ctrl+'",
+          click: () => sendAction('toggle-grid')
+        },
+        {
+          label: 'Show Guides',
+          accelerator: isMac ? 'Cmd+;' : 'Ctrl+;',
+          click: () => sendAction('toggle-guides')
+        },
+        {
+          label: 'Snap (Magnetic & Smart)',
+          accelerator: isMac ? 'Cmd+Shift+;' : 'Ctrl+Shift+;',
+          click: () => sendAction('toggle-snapping')
+        },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        ...(isMac ? [
+          { type: 'separator' },
+          { role: 'front' },
+          { type: 'separator' },
+          { role: 'window' }
+        ] : [
+          { role: 'close' }
+        ])
+      ]
+    },
+    {
+      role: 'help',
+      submenu: [
+        {
+          label: 'Keyboard Shortcuts Guide',
+          click: () => sendAction('shortcuts-guide')
+        },
+        {
+          label: 'About PixelForge Studio',
+          click: () => sendAction('about-app')
+        }
+      ]
+    }
+  ];
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+}
+
 function createWindow() {
   const isLinux = process.platform === 'linux';
+  const isMac = process.platform === 'darwin';
   const iconPath = path.join(__dirname, 'assets', 'icon.png');
 
   const windowOptions = {
@@ -28,8 +317,12 @@ function createWindow() {
   if (isLinux) {
     // Linux window managers (GNOME, KDE Plasma, XFCE) standard decorations
     windowOptions.frame = true;
+  } else if (isMac) {
+    // macOS native seamless titlebar with traffic light buttons
+    windowOptions.titleBarStyle = 'hiddenInset';
+    windowOptions.trafficLightPosition = { x: 12, y: 10 };
   } else {
-    // Windows & macOS custom dark titlebar with native caption buttons
+    // Windows custom dark titlebar with native caption buttons
     windowOptions.titleBarStyle = 'hidden';
     windowOptions.titleBarOverlay = {
       color: '#18181b',
@@ -67,10 +360,11 @@ ipcMain.handle('dialog:openFile', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Open Image or Project',
     filters: [
-      { name: 'All Supported Formats', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'svg', 'psd', 'pforge'] },
+      { name: 'All Supported Formats', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'svg', 'psd', 'pforge', 'hdr', 'exr', 'dng', 'cr2', 'nef', 'arw'] },
       { name: 'Photoshop Document (*.psd)', extensions: ['psd'] },
       { name: 'PixelForge Project (*.pforge)', extensions: ['pforge'] },
-      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'svg'] },
+      { name: 'RAW & HDR Images', extensions: ['dng', 'cr2', 'nef', 'arw', 'hdr', 'exr'] },
+      { name: 'Standard Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'svg'] },
       { name: 'All Files', extensions: ['*'] }
     ],
     properties: ['openFile']
@@ -110,6 +404,8 @@ ipcMain.handle('dialog:saveFile', async (event, { dataUrl, rawBase64, content, d
     { name: 'JPEG Image (*.jpg)', extensions: ['jpg', 'jpeg'] },
     { name: 'WebP Image (*.webp)', extensions: ['webp'] },
     { name: 'Scalable Vector Graphics (*.svg)', extensions: ['svg'] },
+    { name: 'Radiance HDR (*.hdr)', extensions: ['hdr'] },
+    { name: 'OpenEXR 32-bit (*.exr)', extensions: ['exr'] },
     { name: 'All Files', extensions: ['*'] }
   ];
 
@@ -123,6 +419,10 @@ ipcMain.handle('dialog:saveFile', async (event, { dataUrl, rawBase64, content, d
     filters.unshift(filters.splice(4, 1)[0]);
   } else if (format === 'svg') {
     filters.unshift(filters.splice(5, 1)[0]);
+  } else if (format === 'hdr') {
+    filters.unshift(filters.splice(6, 1)[0]);
+  } else if (format === 'exr') {
+    filters.unshift(filters.splice(7, 1)[0]);
   }
 
   const result = await dialog.showSaveDialog(mainWindow, {
@@ -146,7 +446,10 @@ ipcMain.handle('dialog:saveFile', async (event, { dataUrl, rawBase64, content, d
   return result.filePath;
 });
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  buildApplicationMenu();
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

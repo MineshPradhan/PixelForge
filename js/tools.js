@@ -1243,6 +1243,19 @@ class ToolManager {
   }
 
   onPointerDown(e) {
+    // macOS Ctrl+Click emulates right-click (context menu)
+    if (e.button === 0 && e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      e.preventDefault();
+      const coords = this.getDocCoords(e);
+      const hitLayer = this.app.layerManager.getTopVisibleLayerAt(coords.x, coords.y) || this.app.layerManager.getActiveLayer();
+      if (hitLayer && this.app.showLayerContextMenu) {
+        if (!this.app.layerManager.selectedLayerIds.has(hitLayer.id)) {
+          this.app.layerManager.setActiveLayer(hitLayer.id);
+        }
+        this.app.showLayerContextMenu(e.clientX, e.clientY, hitLayer.id);
+      }
+      return;
+    }
     if (e.button !== 0 && e.button !== 1) return;
     const coords = this.getDocCoords(e);
     this.startX = coords.x;

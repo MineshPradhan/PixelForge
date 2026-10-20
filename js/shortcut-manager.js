@@ -144,6 +144,8 @@
 
   class ShortcutManager {
     constructor() {
+      this.isMac = (typeof navigator !== 'undefined' && (/Mac|iPod|iPhone|iPad/.test(navigator.platform) || /Macintosh/.test(navigator.userAgent))) ||
+                   (typeof process !== 'undefined' && process.platform === 'darwin');
       this.currentProfile = 'photoshop';
       this.shortcuts = {};
       this.listeners = new Map();
@@ -234,17 +236,25 @@
     }
 
     /**
-     * Get display text for a shortcut (e.g. "Ctrl+Shift+Z")
+     * Get display text for a shortcut (e.g. "Ctrl+Shift+Z" on Windows/Linux or "⌘⇧Z" on macOS)
      */
     getShortcutDisplay(actionId) {
       const sc = this.shortcuts[actionId];
       if (!sc) return '';
       const parts = [];
-      if (sc.modifiers.includes('ctrl')) parts.push('Ctrl');
-      if (sc.modifiers.includes('alt')) parts.push('Alt');
-      if (sc.modifiers.includes('shift')) parts.push('Shift');
-      parts.push(sc.key.toUpperCase());
-      return parts.join('+');
+      if (this.isMac) {
+        if (sc.modifiers.includes('ctrl')) parts.push('⌘');
+        if (sc.modifiers.includes('alt')) parts.push('⌥');
+        if (sc.modifiers.includes('shift')) parts.push('⇧');
+        parts.push(sc.key.toUpperCase());
+        return parts.join('');
+      } else {
+        if (sc.modifiers.includes('ctrl')) parts.push('Ctrl');
+        if (sc.modifiers.includes('alt')) parts.push('Alt');
+        if (sc.modifiers.includes('shift')) parts.push('Shift');
+        parts.push(sc.key.toUpperCase());
+        return parts.join('+');
+      }
     }
 
     /**

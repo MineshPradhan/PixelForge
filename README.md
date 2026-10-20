@@ -1,10 +1,10 @@
 # PixelForge Studio 🎨
 
-> **A professional, high-performance Photoshop, Affinity, and GIMP alternative for Windows & Linux.**  
+> **A professional, high-performance Photoshop, Affinity, and GIMP alternative for macOS, Windows & Linux.**  
 > Built with HTML5 Canvas, modern JavaScript (ES6+), WebGPU/WebGL acceleration, and Electron.
 
 [![Tests](https://img.shields.io/badge/tests-100%25%20passing-brightgreen.svg)](#-test-suites--validation)
-[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux-blue.svg)](#-platform-support--launching)
+[![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-blue.svg)](#-platform-support--launching)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/runtime%20deps-zero%20(pure%20JS)-orange.svg)](#-architecture--zero-dependency-philosophy)
 
@@ -44,8 +44,8 @@
 | **Advanced OpenType & Variable Fonts** | ✅ Features (`liga`, `smcp`, `tnum`) + Axes | ✅ Full | ✅ Full | ⚠️ Basic text formatting |
 | **Generative Fill & AI Inpainting** | ✅ Texture-aware Poisson synthesis | ✅ Firefly (Cloud) | ❌ None | ❌ Resynthesizer plugin |
 | **Interactive Toolbar Customizer** | ✅ 6-category drawer + presets | ✅ Native | ⚠️ Basic customize | ⚠️ Preferences dock |
-| **Automated Multi-Platform CI/CD** | ✅ GitHub Actions (.exe, AppImage, deb) | ❌ Proprietary Installer | ❌ Proprietary Installer | ✅ Source / Flatpak |
-| **Cross-Platform (Windows & Linux)** | ✅ Windows .exe + Linux AppImage/deb | ❌ Windows & Mac only | ❌ Windows & Mac only | ✅ Linux, Windows & Mac |
+| **Automated Multi-Platform CI/CD** | ✅ GitHub Actions (.dmg, .zip, .exe, AppImage, deb) | ❌ Proprietary Installer | ❌ Proprietary Installer | ✅ Source / Flatpak |
+| **Cross-Platform (macOS, Windows, Linux)** | ✅ macOS DMG/ZIP + Windows .exe + Linux AppImage/deb | ❌ Windows & Mac only | ❌ Windows & Mac only | ✅ Linux, Windows & Mac |
 | **Lens Correction Profiles (Lensfun Parity)** | ✅ Calibrated profiles (Distortion, TCA, Vignette) | ✅ Lens Profile Creator | ✅ Lens Correction Engine | ⚠️ Lensfun plugin dependency |
 | **Vector Variable-Width Stroke Profiling** | ✅ Dynamic arc-length normal ribbon profiles | ⚠️ Stroke profiles / Width Tool | ✅ Pressure / Width Profiles | ❌ Uniform strokes only |
 | **Spot Color Prepress Inks & Plates** | ✅ 8-bit density buffers + Pantone/Metallic/White | ✅ Native Spot Channels | ✅ Spot Inks | ❌ CMYK/RGB only |
@@ -350,7 +350,20 @@ PixelForge Studio implements clean, zero-dependency binary parsers and serialize
 
 ## 💻 Platform Support & Launching
 
-PixelForge Studio is 100% cross-platform compatible on both **Windows** and **Linux** (Ubuntu, Debian, Fedora, Arch, etc.).
+PixelForge Studio is 100% cross-platform compatible on **macOS** (Apple Silicon M1/M2/M3/M4 & Intel x86_64), **Windows**, and **Linux** (Ubuntu, Debian, Fedora, Arch, etc.).
+
+### macOS (Apple Silicon & Intel)
+```bash
+# 1-Click Launch via shell script (supports trackpad pinch-zoom, native menu & Retina)
+chmod +x run-pixelforge-mac.sh
+./run-pixelforge-mac.sh
+
+# Or launch directly via terminal
+npm start
+
+# Build standalone macOS packages (DMG & ZIP)
+npm run dist
+```
 
 ### Windows
 ```powershell
@@ -388,13 +401,14 @@ node server.js
 
 ## 🧪 Test Suites & Validation
 
-PixelForge Studio maintains **100% test coverage** across all modules with automated regression and black-box component discovery suites (49 test suites total):
+PixelForge Studio maintains **100% test coverage** across all modules with automated regression and black-box component discovery suites (51 test suites total, 100% passing):
 
 ```bash
 npm test
 ```
 
 ### Verified Test Suites:
+- `test-macos-compatibility.js`: macOS entitlements, DMG packaging, ⌘/⌥/⇧ symbol rendering, trackpad pinch-zoom, and native application menu bar (**Passed**).
 - `test-exposure-wheels-perspective.js`: Mertens multi-exposure HDR fusion, 3-way color grading wheels, and multi-plane perspective warp studio (**Passed**).
 - `test-frontiers-wrap-onion-lut.js`: Seamless toroidal wrap-around view/brush, animation onion skinning, and 3D LUT tetrahedral simplex interpolation (**Passed**).
 - `test-frontiers-gap-closing.js`: Lens profile database, vector variable-width stroke ribbons, spot color prepress channels (**Passed**).

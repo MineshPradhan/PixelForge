@@ -114,6 +114,7 @@ class PixelForgeApp {
     this.bindHistoryControls();
     this.bindDragAndDrop();
     this.bindClipboardEvents();
+    this.bindNativeMacIntegration();
 
     if (typeof LiquifyModal !== 'undefined') {
       this.liquifyModal = new LiquifyModal(this);
@@ -513,13 +514,23 @@ class PixelForgeApp {
     const vw = viewport.clientWidth;
     const vh = viewport.clientHeight;
 
-    this.rulerTopCanvas.width = vw;
-    this.rulerTopCanvas.height = 20;
-    this.rulerLeftCanvas.width = 20;
-    this.rulerLeftCanvas.height = vh;
+    // Support Retina / High-DPI screens on macOS and 4K displays
+    const dpr = window.devicePixelRatio || 1;
+    this.rulerTopCanvas.width = vw * dpr;
+    this.rulerTopCanvas.height = 20 * dpr;
+    this.rulerTopCanvas.style.width = `${vw}px`;
+    this.rulerTopCanvas.style.height = '20px';
+
+    this.rulerLeftCanvas.width = 20 * dpr;
+    this.rulerLeftCanvas.height = vh * dpr;
+    this.rulerLeftCanvas.style.width = '20px';
+    this.rulerLeftCanvas.style.height = `${vh}px`;
 
     const tCtx = this.rulerTopCtx;
     const lCtx = this.rulerLeftCtx;
+
+    tCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    lCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     tCtx.fillStyle = '#1a1a1e';
     tCtx.fillRect(0, 0, vw, 20);
@@ -528,11 +539,11 @@ class PixelForgeApp {
 
     tCtx.strokeStyle = '#3e3e46';
     tCtx.fillStyle = '#888890';
-    tCtx.font = '9px Inter, sans-serif';
+    tCtx.font = '9px Inter, -apple-system, sans-serif';
 
     lCtx.strokeStyle = '#3e3e46';
     lCtx.fillStyle = '#888890';
-    lCtx.font = '9px Inter, sans-serif';
+    lCtx.font = '9px Inter, -apple-system, sans-serif';
 
     // Canvas center offset in viewport
     const originX = (vw / 2) + this.panX - (this.width * this.zoom / 2);
@@ -643,9 +654,17 @@ class PixelForgeApp {
     const viewport = document.getElementById('viewport-container');
 
     viewport.addEventListener('wheel', (e) => {
+      // macOS trackpad pinch gesture synthesizes a WheelEvent with ctrlKey === true
       if (e.ctrlKey || e.metaKey || e.altKey) {
         e.preventDefault();
-        const factor = e.deltaY < 0 ? 1.2 : 0.833;
+        // Use smooth exponential scale for trackpad pinch gestures, stepped for discrete mouse wheel
+        let factor;
+        if (Math.abs(e.deltaY) < 50 && e.ctrlKey) {
+          // Smooth continuous trackpad pinch
+          factor = Math.exp(-e.deltaY * 0.01);
+        } else {
+          factor = e.deltaY < 0 ? 1.2 : 0.833;
+        }
         this.zoomAt(e.clientX, e.clientY, factor);
       } else {
         this.panX -= e.deltaX;
@@ -2442,7 +2461,7 @@ class PixelForgeApp {
         this.openKeyboardShortcutsModal();
         break;
       case 'about-app':
-        alert("PixelForge Studio Pro\nHigh-Performance Photoshop Alternative for Windows.");
+        alert("PixelForge Studio Pro\nProfessional Photoshop Alternative for macOS, Windows & Linux.");
         break;
     }
   }
@@ -7244,6 +7263,49 @@ class PixelForgeApp {
   }
 
   // ── System & Internal Clipboard Engine (Copy / Cut / Paste) ──
+  bindNativeMacIntegration() {
+    const isMac = (typeof navigator !== "undefined" && (/Mac|iPod|iPhone|iPad/.test(navigator.platform) || /Macintosh/.test(navigator.userAgent))) ||
+                  (typeof process !== "undefined" && process.platform === "darwin");
+    if (isMac) {
+      document.body.classList.add("platform-mac");
+      this.adaptShortcutsForMac();
+    }
+
+    if (typeof window !== "undefined" && window.require) {
+      try {
+        const { ipcRenderer } = window.require("electron");
+        ipcRenderer.on("app:menu-action", (event, action) => {
+          this.handleMenuAction(action);
+        });
+      } catch (e) {}
+    }
+  }
+
+  adaptShortcutsForMac() {
+    document.querySelectorAll(".shortcut, .welcome-shortcut-hint, [title*=\"Ctrl+\"]").forEach(el => {
+      if (el.classList.contains("shortcut") || el.classList.contains("welcome-shortcut-hint")) {
+        let text = el.textContent || "";
+        text = text.replace(/Ctrl\+Alt\+Shift\+/gi, "⌘⌥⇧")
+                   .replace(/Ctrl\+Shift\+/gi, "⌘⇧")
+                   .replace(/Ctrl\+Alt\+/gi, "⌘⌥")
+                   .replace(/Ctrl\+/gi, "⌘")
+                   .replace(/Alt\+/gi, "⌥")
+                   .replace(/Shift\+/gi, "⇧");
+        el.textContent = text;
+      }
+      if (el.hasAttribute("title") && el.getAttribute("title").includes("Ctrl+")) {
+        let t = el.getAttribute("title");
+        t = t.replace(/Ctrl\+Alt\+Shift\+/gi, "⌘⌥⇧")
+             .replace(/Ctrl\+Shift\+/gi, "⌘⇧")
+             .replace(/Ctrl\+Alt\+/gi, "⌘⌥")
+             .replace(/Ctrl\+/gi, "⌘")
+             .replace(/Alt\+/gi, "⌥")
+             .replace(/Shift\+/gi, "⇧");
+        el.setAttribute("title", t);
+      }
+    });
+  }
+
   bindClipboardEvents() {
     window.addEventListener('paste', (e) => this.handleGlobalPaste(e));
   }
@@ -9759,9 +9821,10 @@ class PixelForgeApp {
       return;
     }
 
-    const tokens = displayText.split('+');
+    const isMacGlyphs = /[⌘⌥⇧⌃]/.test(displayText);
+    const tokens = isMacGlyphs ? Array.from(displayText) : displayText.split('+');
     tokens.forEach((token, idx) => {
-      if (idx > 0) {
+      if (idx > 0 && !isMacGlyphs) {
         const plus = document.createElement('span');
         plus.className = 'shortcut-kbd-plus';
         plus.textContent = '+';
