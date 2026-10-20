@@ -3,7 +3,7 @@
 > **A professional, high-performance Photoshop, Affinity, and GIMP alternative for macOS, Windows & Linux.**  
 > Built with HTML5 Canvas, modern JavaScript (ES6+), WebGPU/WebGL acceleration, and Electron.
 
-[![Tests](https://img.shields.io/badge/tests-53%20suites%20passing%20(100%25)-brightgreen.svg)](#-test-suites--validation)
+[![Tests](https://img.shields.io/badge/tests-54%20suites%20passing%20(100%25)-brightgreen.svg)](#-test-suites--validation)
 [![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-blue.svg)](#-platform-support--launching)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/runtime%20deps-zero%20(pure%20JS)-orange.svg)](#-architecture--zero-dependency-philosophy)
@@ -440,13 +440,14 @@ node server.js
 
 ## 🧪 Test Suites & Validation
 
-PixelForge Studio maintains **100% test coverage** across all modules with automated regression, competitor parity verification, and black-box component discovery suites (53 test suites total, 1,220+ verified assertions, 100% passing):
+PixelForge Studio maintains **100% test coverage** across all modules with automated regression, competitor parity verification, and black-box component discovery suites (54 test suites total, 1,250+ verified assertions, 100% passing):
 
 ```bash
 npm test
 ```
 
 ### Verified Test Suites:
+- `test-systemic-parity-and-protections.js`: Global action dispatch parity (180/180), locked/hidden/group layer mutation guards, headless safe error boundaries (**Passed**).
 - `test-competitor-parity-enhancements.js`: Fritsch-Carlson monotone cubic spline curves, scanline span flood fill, and real-time EMA brush stroke smoothing (**Passed**).
 - `test-blackbox-deep-audit.js`: Deep end-to-end blackbox audit of shortcut profiles, actions engine macro serialization, and coordinate boundary guards (**Passed**).
 - `test-macos-compatibility.js`: macOS entitlements, DMG packaging, ⌘/⌥/⇧ symbol rendering, trackpad pinch-zoom, and native application menu bar (**Passed**).

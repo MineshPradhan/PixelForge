@@ -569,15 +569,18 @@ class LiquifyModal {
   open() {
     const activeLayer = this.app.layerManager.getActiveLayer();
     if (!activeLayer) {
-      alert('Please select a layer to liquify.');
+      if (typeof alert !== 'undefined') alert('Please select a layer to liquify.');
+      else if (this.app?.showToast) this.app.showToast('Please select a layer to liquify.');
       return;
     }
     if (activeLayer.locked) {
-      alert('Cannot liquify a locked layer.');
+      if (typeof alert !== 'undefined') alert('Cannot liquify a locked layer.');
+      else if (this.app?.showToast) this.app.showToast('Cannot liquify a locked layer.');
       return;
     }
     if (activeLayer.type === 'group') {
-      alert('Cannot liquify a layer group. Select a bitmap or text layer.');
+      if (typeof alert !== 'undefined') alert('Cannot liquify a layer group. Select a bitmap or text layer.');
+      else if (this.app?.showToast) this.app.showToast('Cannot liquify a layer group. Select a bitmap or text layer.');
       return;
     }
 

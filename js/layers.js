@@ -1136,13 +1136,13 @@ class LayerManager {
 
   deleteActiveLayer() {
     if (this.layers.length <= 1) {
-      alert("Cannot delete the only remaining layer!");
+      if (typeof alert !== 'undefined') alert("Cannot delete the only remaining layer!");
       return false;
     }
 
     const toDelete = new Set(this.selectedLayerIds.size > 0 ? this.selectedLayerIds : [this.activeLayerId]);
     if (toDelete.size >= this.layers.length) {
-      alert("Cannot delete all layers!");
+      if (typeof alert !== 'undefined') alert("Cannot delete all layers!");
       return false;
     }
 

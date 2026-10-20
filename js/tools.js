@@ -1301,6 +1301,36 @@ class ToolManager {
     const activeLayer = this.app.layerManager.getActiveLayer();
     if (!activeLayer) return;
 
+    // Raster & Drawing layer protection: prevent destructive edits on locked/hidden/group layers
+    const rasterModifyingTools = [
+      'brush', 'mixer-brush', 'pencil', 'eraser', 'adjustment-brush', 'history-brush',
+      'clone-stamp', 'spot-healing', 'patch', 'content-aware-move', 'bucket', 'gradient',
+      'dodge', 'burn', 'sponge', 'tool-blur', 'tool-sharpen', 'smudge',
+      'shape-rect', 'shape-rounded-rect', 'shape-ellipse', 'shape-polygon', 'shape-star', 'shape-line'
+    ];
+    if (rasterModifyingTools.includes(this.currentTool)) {
+      if (activeLayer.locked) {
+        if (this.app && this.app.showToast) this.app.showToast('Layer is locked. Unlock the layer to edit.');
+        this.isMouseDown = false;
+        return;
+      }
+      if (activeLayer.visible === false) {
+        if (this.app && this.app.showToast) this.app.showToast('Layer is hidden. Make it visible to edit.');
+        this.isMouseDown = false;
+        return;
+      }
+      if (activeLayer.type === 'group') {
+        if (this.app && this.app.showToast) this.app.showToast('Cannot paint directly on a Layer Group.');
+        this.isMouseDown = false;
+        return;
+      }
+      if (activeLayer.isAdjustment && !activeLayer.isMaskActive) {
+        if (this.app && this.app.showToast) this.app.showToast('Select the adjustment layer mask to paint on it.');
+        this.isMouseDown = false;
+        return;
+      }
+    }
+
     // Clone Stamp source picking with Alt
     if (this.currentTool === 'clone-stamp') {
       if (e.altKey) {
@@ -1314,7 +1344,8 @@ class ToolManager {
         return;
       }
       if (!this.cloneSource) {
-        alert("Hold Alt and click on the canvas to set a Clone Source point first!");
+        if (typeof alert !== 'undefined') alert("Hold Alt and click on the canvas to set a Clone Source point first!");
+        else if (this.app && this.app.showToast) this.app.showToast("Hold Alt and click on the canvas to set a Clone Source point first!");
         this.isMouseDown = false;
         return;
       }
@@ -1596,6 +1627,18 @@ class ToolManager {
 
     const activeLayer = this.app.layerManager.getActiveLayer();
     if (!activeLayer) return;
+
+    if (activeLayer.locked || activeLayer.visible === false || activeLayer.type === 'group' || (activeLayer.isAdjustment && !activeLayer.isMaskActive)) {
+      const rasterModifyingTools = [
+        'brush', 'mixer-brush', 'pencil', 'eraser', 'adjustment-brush', 'history-brush',
+        'clone-stamp', 'spot-healing', 'patch', 'content-aware-move', 'bucket', 'gradient',
+        'dodge', 'burn', 'sponge', 'tool-blur', 'tool-sharpen', 'smudge',
+        'shape-rect', 'shape-rounded-rect', 'shape-ellipse', 'shape-polygon', 'shape-star', 'shape-line'
+      ];
+      if (rasterModifyingTools.includes(this.currentTool)) {
+        return;
+      }
+    }
 
     switch (this.currentTool) {
       case 'brush':
@@ -2947,9 +2990,10 @@ class ToolManager {
   // ── Content-Aware Fill ──
   applyContentAwareFill(options = {}) {
     const active = this.app.layerManager.getActiveLayer();
-    if (!active) return;
+    if (!active || active.locked || active.visible === false) return;
     if (!this.selection) {
       if (typeof alert !== 'undefined') alert("Please create a selection first to use Content-Aware Fill.");
+      else if (this.app && this.app.showToast) this.app.showToast("Please create a selection first to use Content-Aware Fill.");
       return;
     }
 
@@ -4354,6 +4398,18 @@ class ToolManager {
     const dist = Math.hypot(endX - startX, endY - startY);
     const activeLayer = this.app.layerManager.getActiveLayer();
     if (!activeLayer) return;
+
+    if (activeLayer.locked || activeLayer.visible === false || activeLayer.type === 'group' || (activeLayer.isAdjustment && !activeLayer.isMaskActive)) {
+      const rasterModifyingTools = [
+        'brush', 'mixer-brush', 'pencil', 'eraser', 'adjustment-brush', 'history-brush',
+        'clone-stamp', 'spot-healing', 'patch', 'content-aware-move', 'bucket', 'gradient',
+        'dodge', 'burn', 'sponge', 'tool-blur', 'tool-sharpen', 'smudge',
+        'shape-rect', 'shape-rounded-rect', 'shape-ellipse', 'shape-polygon', 'shape-star', 'shape-line'
+      ];
+      if (rasterModifyingTools.includes(this.currentTool)) {
+        return;
+      }
+    }
 
     const w = this.app.width;
     const h = this.app.height;

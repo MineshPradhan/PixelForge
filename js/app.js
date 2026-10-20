@@ -2086,6 +2086,58 @@ class PixelForgeApp {
           this.pushHistoryState('Delete Layer');
         }
         break;
+      case 'group-layers': {
+        const group = this.layerManager.addGroup();
+        if (group) {
+          this.renderComposite();
+          this.pushHistoryState('Group Layers');
+        }
+        break;
+      }
+      case 'ungroup-layers': {
+        const activeLayer = this.layerManager.getActiveLayer();
+        if (activeLayer) {
+          this.layerManager.ungroup(activeLayer.id);
+          this.renderComposite();
+          this.pushHistoryState('Ungroup Layers');
+        }
+        break;
+      }
+      case 'rasterize-type': {
+        const activeLayer = this.layerManager.getActiveLayer();
+        if (activeLayer && this.layerManager.rasterizeTextLayer(activeLayer.id)) {
+          this.renderComposite();
+          this.pushHistoryState('Rasterize Type Layer');
+        }
+        break;
+      }
+      case 'crop-layer': {
+        const activeLayer = this.layerManager.getActiveLayer();
+        if (activeLayer && this.toolManager && this.toolManager.startManualCrop) {
+          this.toolManager.startManualCrop(activeLayer);
+        }
+        break;
+      }
+      case 'delete-state': {
+        const curIdx = this.historyManager?.currentIndex ?? -1;
+        const curStep = this.historyManager?.steps ? this.historyManager.steps[curIdx] : null;
+        if (curStep && curIdx >= 0) {
+          this.openHistoryConfirmModal('delete-single', curStep, curIdx);
+        }
+        break;
+      }
+      case 'delete-subsequent': {
+        const curIdx = this.historyManager?.currentIndex ?? -1;
+        const curStep = this.historyManager?.steps ? this.historyManager.steps[curIdx] : null;
+        if (curStep && curIdx >= 0) {
+          this.openHistoryConfirmModal('delete-subsequent', curStep, curIdx);
+        }
+        break;
+      }
+      case 'clear-all': {
+        this.openHistoryConfirmModal('clear-all', null, -1);
+        break;
+      }
       case 'layer-styles':
         this.openLayerStylesModal();
         break;
@@ -8057,6 +8109,10 @@ class PixelForgeApp {
             };
             break;
           case 'colorTransfer':
+            if (!refImgData) {
+              if (this.showToast) this.showToast('Please select a reference image for Color Transfer first.');
+              return;
+            }
             params = {
               intensity: parseInt(document.getElementById('param-ct-intensity')?.value, 10) || 80,
               preserveLuminance: !!document.getElementById('param-ct-pres-lum')?.checked,

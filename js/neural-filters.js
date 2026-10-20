@@ -69,6 +69,22 @@ class NeuralFilters {
 
     // 2. Frequency Separation: Generate Low-Frequency Base Tone via Guided Bilateral Filter
     const radius = Math.max(2, Math.round((smoothness / 100) * 8));
+    const kDim = 2 * radius + 1;
+    const spatialKernel = new Float32Array(kDim * kDim);
+    const twoRadiusSq = 2 * radius * radius;
+    for (let ky = -radius; ky <= radius; ky++) {
+      for (let kx = -radius; kx <= radius; kx++) {
+        spatialKernel[(ky + radius) * kDim + (kx + radius)] = Math.exp(-(kx * kx + ky * ky) / twoRadiusSq);
+      }
+    }
+
+    const rangeLutSize = 3 * 255 * 255 + 1;
+    const rangeLut = new Float32Array(rangeLutSize);
+    const twoSigmaRangeSq = 2 * 45 * 45;
+    for (let d = 0; d < rangeLutSize; d++) {
+      rangeLut[d] = Math.exp(-d / twoSigmaRangeSq);
+    }
+
     const smoothR = new Float32Array(w * h);
     const smoothG = new Float32Array(w * h);
     const smoothB = new Float32Array(w * h);
@@ -87,18 +103,21 @@ class NeuralFilters {
         const xMax = Math.min(w - 1, x + radius);
 
         for (let ny = yMin; ny <= yMax; ny++) {
+          const kRow = (ny - y + radius) * kDim;
           for (let nx = xMin; nx <= xMax; nx++) {
             const nIdx = (ny * w + nx) * 4;
             const nR = src[nIdx];
             const nG = src[nIdx + 1];
             const nB = src[nIdx + 2];
 
-            const spatialDistSq = (x - nx) * (x - nx) + (y - ny) * (y - ny);
-            const colorDistSq = (cR - nR) * (cR - nR) + (cG - nG) * (cG - nG) + (cB - nB) * (cB - nB);
+            const diffR = cR - nR;
+            const diffG = cG - nG;
+            const diffB = cB - nB;
+            const colorDistSq = diffR * diffR + diffG * diffG + diffB * diffB;
 
-            // Bilateral range weighting (preserves strong facial edges like eyes, lips, jawline)
-            const wSpatial = Math.exp(-spatialDistSq / (2 * radius * radius));
-            const wRange = Math.exp(-colorDistSq / (2 * 45 * 45));
+            // Fast O(1) precomputed spatial and range kernel weighting
+            const wSpatial = spatialKernel[kRow + (nx - x + radius)];
+            const wRange = rangeLut[colorDistSq];
             const weight = wSpatial * wRange;
 
             sumR += nR * weight;
