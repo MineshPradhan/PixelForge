@@ -143,9 +143,15 @@
   };
 
   class ShortcutManager {
-    constructor() {
-      this.isMac = (typeof navigator !== 'undefined' && (/Mac|iPod|iPhone|iPad/.test(navigator.platform) || /Macintosh/.test(navigator.userAgent))) ||
-                   (typeof process !== 'undefined' && process.platform === 'darwin');
+    constructor(options = {}) {
+      if (typeof options.isMac === 'boolean') {
+        this.isMac = options.isMac;
+      } else if (typeof navigator !== 'undefined') {
+        this.isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform) || /Macintosh/.test(navigator.userAgent);
+      } else {
+        // Default to standard representation in Node/test environments to ensure deterministic cross-platform CI tests
+        this.isMac = false;
+      }
       this.currentProfile = 'photoshop';
       this.shortcuts = {};
       this.listeners = new Map();
@@ -238,11 +244,12 @@
     /**
      * Get display text for a shortcut (e.g. "Ctrl+Shift+Z" on Windows/Linux or "⌘⇧Z" on macOS)
      */
-    getShortcutDisplay(actionId) {
+    getShortcutDisplay(actionId, options = {}) {
       const sc = this.shortcuts[actionId];
       if (!sc) return '';
       const parts = [];
-      if (this.isMac) {
+      const useMacGlyphs = options.platform === 'mac' || (options.platform === undefined && this.isMac && options.nativeSymbols !== false);
+      if (useMacGlyphs) {
         if (sc.modifiers.includes('ctrl')) parts.push('⌘');
         if (sc.modifiers.includes('alt')) parts.push('⌥');
         if (sc.modifiers.includes('shift')) parts.push('⇧');
@@ -255,6 +262,20 @@
         parts.push(sc.key.toUpperCase());
         return parts.join('+');
       }
+    }
+
+    /**
+     * Get platform-canonical standard shortcut string (e.g., 'Ctrl+Shift+Z')
+     */
+    getStandardShortcutDisplay(actionId) {
+      return this.getShortcutDisplay(actionId, { platform: 'standard' });
+    }
+
+    /**
+     * Get macOS-specific glyph shortcut string (e.g., '⌘⇧Z')
+     */
+    getMacShortcutDisplay(actionId) {
+      return this.getShortcutDisplay(actionId, { platform: 'mac' });
     }
 
     /**
