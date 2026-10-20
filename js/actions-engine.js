@@ -129,6 +129,10 @@ class ActionSet {
         return action;
     }
 
+    createAction(name) {
+        return this.addAction(name);
+    }
+
     removeAction(actionId) {
         const idx = this.actions.findIndex(a => a.id === actionId);
         if (idx !== -1) {
@@ -185,15 +189,50 @@ class ActionsEngine {
     }
 
     /**
-     * Start recording into a target action
-     * @param {Action} action 
+     * Create and append a new ActionSet
+     * @param {string} name
+     * @returns {ActionSet}
      */
-    startRecording(action) {
-        if (!action) {
-            throw new Error('Must specify an Action to record into');
+    createSet(name = 'New Actions') {
+        const set = new ActionSet(name);
+        this.sets.push(set);
+        return set;
+    }
+
+    /**
+     * Add existing ActionSet
+     * @param {ActionSet} set
+     */
+    addSet(set) {
+        if (set instanceof ActionSet) {
+            this.sets.push(set);
+        }
+    }
+
+    /**
+     * Start recording into a target action
+     * @param {Action|string} actionOrSetName 
+     * @param {string} [actionName]
+     */
+    startRecording(actionOrSetName, actionName) {
+        let targetAction = actionOrSetName;
+        if (typeof actionOrSetName === 'string') {
+            if (actionName) {
+                let set = this.sets.find(s => s.name === actionOrSetName);
+                if (!set) set = this.createSet(actionOrSetName);
+                targetAction = set.actions.find(a => a.name === actionName);
+                if (!targetAction) targetAction = set.createAction(actionName);
+            } else {
+                let defaultSet = this.sets[0] || this.createSet('Default Actions');
+                targetAction = defaultSet.actions.find(a => a.name === actionOrSetName);
+                if (!targetAction) targetAction = defaultSet.createAction(actionOrSetName);
+            }
+        }
+        if (!targetAction || typeof targetAction.addStep !== 'function') {
+            throw new Error('Must specify an Action instance or valid action name to record into');
         }
         this.isRecording = true;
-        this.currentRecordingAction = action;
+        this.currentRecordingAction = targetAction;
     }
 
     /**
@@ -405,12 +444,26 @@ class ActionsEngine {
      */
     importSet(jsonString) {
         const data = JSON.parse(jsonString);
-        if (data.type !== 'PixelForgeActions' && !data.set) {
+        if (!data || (data.type !== 'PixelForgeActions' && !data.set && !data.actions)) {
             throw new Error('Invalid PixelForge Action file');
         }
         const set = ActionSet.fromJSON(data.set || data);
         this.sets.push(set);
         return set;
+    }
+
+    /**
+     * Safe import from JSON string returning boolean
+     * @param {string} jsonString
+     * @returns {boolean}
+     */
+    importJSON(jsonString) {
+        try {
+            const set = this.importSet(jsonString);
+            return Boolean(set);
+        } catch (e) {
+            return false;
+        }
     }
 }
 

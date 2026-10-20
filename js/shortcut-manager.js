@@ -167,8 +167,9 @@
      * Format keystroke identifier (e.g., 'ctrl+shift+z' or 'v')
      */
     buildComboString(key, modifiers = []) {
+      if (!key || typeof key !== 'string') return '';
       const parts = [];
-      const mods = modifiers.map(m => m.toLowerCase());
+      const mods = Array.isArray(modifiers) ? modifiers.map(m => (m || '').toLowerCase()) : [];
       if (mods.includes('ctrl') || mods.includes('control') || mods.includes('meta')) parts.push('ctrl');
       if (mods.includes('alt')) parts.push('alt');
       if (mods.includes('shift')) parts.push('shift');
@@ -189,6 +190,9 @@
      * Assign or remap a shortcut with conflict checking
      */
     setShortcut(actionId, key, modifiers = []) {
+      if (!actionId || typeof actionId !== 'string' || !key || typeof key !== 'string') {
+        return { success: false, conflict: null };
+      }
       const newCombo = this.buildComboString(key, modifiers);
 
       // Check conflict
@@ -233,6 +237,7 @@
      * Look up action from KeyboardEvent
      */
     getActionFromEvent(event) {
+      if (!event || !event.key || typeof event.key !== 'string') return null;
       const modifiers = [];
       if (event.ctrlKey || event.metaKey) modifiers.push('ctrl');
       if (event.altKey) modifiers.push('alt');
