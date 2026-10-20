@@ -8020,6 +8020,10 @@ class PixelForgeApp {
     bindRange('param-sky-blend', 'val-sky-blend');
     bindRange('param-sky-feather', 'val-sky-feather');
     bindRange('param-sky-harmony', 'val-sky-harmony');
+    bindRange('param-denoise-strength', 'val-denoise-strength');
+    bindRange('param-denoise-detail', 'val-denoise-detail');
+    bindRange('param-colorize-sat', 'val-colorize-sat');
+    bindRange('param-colorize-temp', 'val-colorize-temp');
 
     // Color Transfer reference file loader
     let refImgData = null;
@@ -8084,6 +8088,19 @@ class PixelForgeApp {
               skyBlend: parseInt(document.getElementById('param-sky-blend')?.value, 10) || 90,
               edgeFeather: parseInt(document.getElementById('param-sky-feather')?.value, 10) || 12,
               colorHarmony: parseInt(document.getElementById('param-sky-harmony')?.value, 10) || 50
+            };
+            break;
+          case 'denoise':
+            params = {
+              strength: parseInt(document.getElementById('param-denoise-strength')?.value, 10) || 50,
+              preserveDetail: parseInt(document.getElementById('param-denoise-detail')?.value, 10) || 65
+            };
+            break;
+          case 'colorize':
+            params = {
+              palette: document.getElementById('param-colorize-palette')?.value || 'natural',
+              saturation: parseInt(document.getElementById('param-colorize-sat')?.value, 10) || 60,
+              temperature: parseInt(document.getElementById('param-colorize-temp')?.value, 10) || 0
             };
             break;
         }

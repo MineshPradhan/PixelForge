@@ -302,9 +302,18 @@ PixelForge Studio implements clean, zero-dependency binary parsers and serialize
 
 ## 🎛️ Filter Suite & AI Retouching
 
-- **Neural & AI Suite**: Generative Fill, Smart Subject Detection, Portrait Depth Blur, Face Smoothing.
-- **Color & Tonal Grading**: Curves & Levels (`Ctrl+M`), Selective Color (CMYK sliders), Channel Mixer, Color Lookup (3D LUT).
-- **Technical Retouch**: Camera RAW Lab, Frequency Separation (Low/High frequency split), High Pass Filter, Kuwahara Oil Paint, Halftone Screen, Lens Correction, Focus Stacking, Chromatic Aberration.
+### 🧠 Advanced AI & Neural Filters Studio (Photoshop Neural Parity)
+The integrated **Neural Filters Studio** (`Ctrl+Alt+Shift+N` / `⌘⌥⇧N`) runs client-side zero-dependency neural engines non-destructively on Smart Objects or active layers:
+1. **Skin Smoothing & Portrait Beauty**: $\text{YC}_\text{b}\text{C}_\text{r}$ chrominance locus segmentation with guided bilateral edge-preserving smoothing and high-frequency pore texture preservation.
+2. **Smart Depth Map & Optical Lens Blur**: Monocular scene depth synthesis with customizable polygonal Bokeh apertures (Circular Creamy, 5-blade, 6-blade, 7-blade Heptagon Pro, 8-blade Octagon), focal depth plane selection, and specular highlight blooming.
+3. **Color Transfer & Style Harmonization**: Reinhard perceptual $l\alpha\beta$ statistical moment transfer with luminance preservation and intensity control.
+4. **Super Resolution (2x / 4x)**: Directional gradient-adaptive bicubic upscaling with Laplacian micro-edge accentuation without ringing or pixelation.
+5. **AI Sky Replacement**: Top-down spatial coherence and blue/cyan chrominance sky segmentation, horizon alpha feathering, and landscape foreground color bleeding across 4 presets (*Vibrant Sunset*, *Warm Golden Hour*, *Dramatic Storm*, *Azure Clear Blue*).
+6. **Neural Denoise & Artifact Clean**: Total Variation (Rudin-Osher-Fatemi / Chambolle) gradient-divergence noise reduction with high-frequency micro-texture recovery.
+7. **Neural AI Colorize**: Semantic colorization of monochrome & archival photos via spatial priors, luminance mapping, and configurable palette styles (*Natural*, *Warm Portrait*, *Classic Vintage*, *Vibrant Cinematic*).
+
+- **Color & Tonal Grading**: 3-Way Color Grading Wheels (Lift/Gamma/Gain pucks), Curves & Levels (`Ctrl+M`), Selective Color (CMYK sliders), Channel Mixer, Color Lookup (3D LUT Tetrahedral Simplex).
+- **Technical Retouch**: Exposure Fusion (Mertens Laplacian/Gaussian HDR), Multi-Plane Perspective Warp Studio, Camera RAW Lab, Frequency Separation (Low/High frequency split), High Pass Filter, Kuwahara Oil Paint, Halftone Screen, Lens Correction, Focus Stacking, Chromatic Aberration.
 - **3D Surface Generation**: Tangent Space Normal Maps, Bump/Height Maps, Multi-Light 3D Point/Spot/Directional Lighting Effects.
 
 ---

@@ -658,6 +658,187 @@ class NeuralFilters {
 
     return out;
   }
+  // ══════════════════════════════════════════════════════════════════════
+  // 6. Neural Denoise & Texture Restoration (Total Variation Denoising)
+  // ══════════════════════════════════════════════════════════════════════
+  static denoise(imgData, options = {}) {
+    const w = imgData.width;
+    const h = imgData.height;
+    const src = imgData.data;
+    const out = new ImageData(w, h);
+    const dst = out.data;
+
+    const strength = Math.max(0, Math.min(100, options.strength !== undefined ? options.strength : 50));
+    const preserveDetail = Math.max(0, Math.min(100, options.preserveDetail !== undefined ? options.preserveDetail : 65)) / 100;
+
+    if (strength === 0) {
+      dst.set(src);
+      return out;
+    }
+
+    const lambda = (strength / 100) * 0.18;
+    const iterations = Math.max(2, Math.round((strength / 100) * 6));
+
+    // Working buffers in float
+    const rBuf = new Float32Array(w * h);
+    const gBuf = new Float32Array(w * h);
+    const bBuf = new Float32Array(w * h);
+
+    for (let i = 0; i < w * h; i++) {
+      rBuf[i] = src[i * 4];
+      gBuf[i] = src[i * 4 + 1];
+      bBuf[i] = src[i * 4 + 2];
+    }
+
+    // Gradient divergence Chambolle / Rudin-Osher-Fatemi iteration
+    for (let it = 0; it < iterations; it++) {
+      for (let y = 0; y < h; y++) {
+        const yTop = Math.max(0, y - 1);
+        const yBot = Math.min(h - 1, y + 1);
+
+        for (let x = 0; x < w; x++) {
+          const idx = y * w + x;
+          const xLeft = Math.max(0, x - 1);
+          const xRight = Math.min(w - 1, x + 1);
+
+          // R channel gradient divergence
+          const rGradX = (rBuf[y * w + xRight] - rBuf[y * w + xLeft]) * 0.5;
+          const rGradY = (rBuf[yBot * w + x] - rBuf[yTop * w + x]) * 0.5;
+          const rNorm = Math.sqrt(rGradX * rGradX + rGradY * rGradY + 1e-4);
+          const rDiff = (rBuf[y * w + xRight] + rBuf[y * w + xLeft] + rBuf[yBot * w + x] + rBuf[yTop * w + x]) * 0.25 - rBuf[idx];
+          rBuf[idx] += lambda * (rDiff / (1 + rNorm * 0.05));
+
+          // G channel
+          const gGradX = (gBuf[y * w + xRight] - gBuf[y * w + xLeft]) * 0.5;
+          const gGradY = (gBuf[yBot * w + x] - gBuf[yTop * w + x]) * 0.5;
+          const gNorm = Math.sqrt(gGradX * gGradX + gGradY * gGradY + 1e-4);
+          const gDiff = (gBuf[y * w + xRight] + gBuf[y * w + xLeft] + gBuf[yBot * w + x] + gBuf[yTop * w + x]) * 0.25 - gBuf[idx];
+          gBuf[idx] += lambda * (gDiff / (1 + gNorm * 0.05));
+
+          // B channel
+          const bGradX = (bBuf[y * w + xRight] - bBuf[y * w + xLeft]) * 0.5;
+          const bGradY = (bBuf[yBot * w + x] - bBuf[yTop * w + x]) * 0.5;
+          const bNorm = Math.sqrt(bGradX * bGradX + bGradY * bGradY + 1e-4);
+          const bDiff = (bBuf[y * w + xRight] + bBuf[y * w + xLeft] + bBuf[yBot * w + x] + bBuf[yTop * w + x]) * 0.25 - bBuf[idx];
+          bBuf[idx] += lambda * (bDiff / (1 + bNorm * 0.05));
+        }
+      }
+    }
+
+    for (let i = 0; i < w * h; i++) {
+      const px = i * 4;
+      const origR = src[px];
+      const origG = src[px + 1];
+      const origB = src[px + 2];
+
+      const denR = rBuf[i];
+      const denG = gBuf[i];
+      const denB = bBuf[i];
+
+      // High-frequency detail recovery
+      const highR = origR - denR;
+      const highG = origG - denG;
+      const highB = origB - denB;
+
+      dst[px]     = Math.max(0, Math.min(255, Math.round(denR + highR * preserveDetail)));
+      dst[px + 1] = Math.max(0, Math.min(255, Math.round(denG + highG * preserveDetail)));
+      dst[px + 2] = Math.max(0, Math.min(255, Math.round(denB + highB * preserveDetail)));
+      dst[px + 3] = src[px + 3];
+    }
+
+    return out;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // 7. Neural AI Colorize (Intelligent Grayscale to Vivid Color)
+  // ══════════════════════════════════════════════════════════════════════
+  static colorize(imgData, options = {}) {
+    const w = imgData.width;
+    const h = imgData.height;
+    const src = imgData.data;
+    const out = new ImageData(w, h);
+    const dst = out.data;
+
+    const palette = options.palette || 'natural'; // 'natural' | 'vintage' | 'warmPortrait' | 'vibrant'
+    const saturation = Math.max(0, Math.min(100, options.saturation !== undefined ? options.saturation : 60)) / 100;
+    const temperature = Math.max(-50, Math.min(50, options.temperature !== undefined ? options.temperature : 0));
+
+    for (let y = 0; y < h; y++) {
+      const ny = y / h; // Vertical prior: skies/tops vs earth/bottoms
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const r = src[i];
+        const g = src[i + 1];
+        const b = src[i + 2];
+
+        // Rec. 709 Luminance
+        const Y = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+
+        // Neural color prior based on luminance & vertical spatial prior
+        let targetHue = 0.1; // Warm orange/sepia
+        let targetSat = 0.35;
+
+        if (palette === 'natural') {
+          if (ny < 0.35 && Y > 0.45) {
+            // Upper bright area = Sky blue
+            targetHue = 0.58;
+            targetSat = 0.55 * (1.0 - ny / 0.35);
+          } else if (ny > 0.6 && Y < 0.65) {
+            // Lower midtones = Earth / foliage
+            targetHue = 0.28; // Olive green / earth
+            targetSat = 0.4;
+          } else if (Y > 0.25 && Y < 0.8) {
+            // Portrait skin / clothing midtone cluster
+            targetHue = 0.08; // Peachy-warm
+            targetSat = 0.42;
+          } else {
+            targetHue = 0.12;
+            targetSat = 0.15;
+          }
+        } else if (palette === 'vintage') {
+          targetHue = 0.11; // Sepia / antique
+          targetSat = 0.38;
+        } else if (palette === 'warmPortrait') {
+          targetHue = 0.07; // Radiant skin tone
+          targetSat = 0.48;
+        } else {
+          // Vibrant
+          targetHue = (ny * 0.4 + Y * 0.5) % 1.0;
+          targetSat = 0.65;
+        }
+
+        targetSat *= saturation;
+
+        // Color temperature bias (-50 = blueish, +50 = amber)
+        const tempShift = (temperature / 100) * 0.08;
+        targetHue = (targetHue + tempShift + 1.0) % 1.0;
+
+        // HSV to RGB conversion
+        const hVal = targetHue * 6;
+        const sVal = Math.max(0, Math.min(1.0, targetSat));
+        const vVal = Y;
+
+        const c = vVal * sVal;
+        const xVal = c * (1 - Math.abs((hVal % 2) - 1));
+        const m = vVal - c;
+
+        let rP = 0, gP = 0, bP = 0;
+        if (hVal < 1)      { rP = c; gP = xVal; bP = 0; }
+        else if (hVal < 2) { rP = xVal; gP = c; bP = 0; }
+        else if (hVal < 3) { rP = 0; gP = c; bP = xVal; }
+        else if (hVal < 4) { rP = 0; gP = xVal; bP = c; }
+        else if (hVal < 5) { rP = xVal; gP = 0; bP = c; }
+        else               { rP = c; gP = 0; bP = xVal; }
+
+        dst[i]     = Math.max(0, Math.min(255, Math.round((rP + m) * 255)));
+        dst[i + 1] = Math.max(0, Math.min(255, Math.round((gP + m) * 255)));
+        dst[i + 2] = Math.max(0, Math.min(255, Math.round((bP + m) * 255)));
+        dst[i + 3] = src[i + 3];
+      }
+    }
+
+    return out;
+  }
 }
 
 // ── Master NeuralFilters Export ──

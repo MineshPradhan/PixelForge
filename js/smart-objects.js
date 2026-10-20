@@ -48,6 +48,8 @@ class SmartFilter {
       colorTransfer: 'Color Transfer (Neural)',
       superResolution: 'Super Resolution (Neural)',
       skyReplacement: 'Sky Replacement (Neural)',
+      denoise: 'Neural Denoise (AI)',
+      colorize: 'Neural Colorize (AI)',
       colorLookup: 'Color Lookup (3D LUT)',
       offset: 'Offset Filter',
       highPass: 'High Pass Filter',
@@ -122,6 +124,10 @@ class SmartFilter {
             return NeuralFilters.superResolution(imgData, p);
           case 'skyReplacement':
             return NeuralFilters.skyReplacement(imgData, p);
+          case 'denoise':
+            return NeuralFilters.denoise(imgData, p);
+          case 'colorize':
+            return NeuralFilters.colorize(imgData, p);
         }
       }
       return imgData;

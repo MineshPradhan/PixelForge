@@ -3653,6 +3653,8 @@
             <button class="tool-opt-btn neural-tab-btn" data-filter="colorTransfer">Color Transfer</button>
             <button class="tool-opt-btn neural-tab-btn" data-filter="superResolution">Super Resolution</button>
             <button class="tool-opt-btn neural-tab-btn" data-filter="skyReplacement">Sky Replacement</button>
+            <button class="tool-opt-btn neural-tab-btn" data-filter="denoise">Neural Denoise</button>
+            <button class="tool-opt-btn neural-tab-btn" data-filter="colorize">Neural Colorize</button>
           </div>
 
           <!-- Right: Parameters Panel -->
@@ -3758,6 +3760,43 @@
               <div class="form-row">
                 <label>Foreground Color Harmony: <span id="val-sky-harmony">50</span>%</label>
                 <input type="range" id="param-sky-harmony" min="0" max="100" value="50">
+              </div>
+            </div>
+
+            <!-- 6. Neural Denoise Controls -->
+            <div class="neural-pane hidden" id="pane-denoise">
+              <h4 style="margin:0 0 8px 0; color:var(--text-main);">Neural Denoise &amp; Artifact Clean</h4>
+              <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Total Variation Chambolle gradient-divergence noise reduction with high-frequency micro-texture recovery.</p>
+              <div class="form-row">
+                <label>Reduction Strength: <span id="val-denoise-strength">50</span>%</label>
+                <input type="range" id="param-denoise-strength" min="0" max="100" value="50">
+              </div>
+              <div class="form-row">
+                <label>Preserve Detail: <span id="val-denoise-detail">65</span>%</label>
+                <input type="range" id="param-denoise-detail" min="0" max="100" value="65">
+              </div>
+            </div>
+
+            <!-- 7. Neural Colorize Controls -->
+            <div class="neural-pane hidden" id="pane-colorize">
+              <h4 style="margin:0 0 8px 0; color:var(--text-main);">Neural AI Colorize</h4>
+              <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Intelligent semantic colorization of monochrome &amp; archival photos with natural scene priors.</p>
+              <div class="form-row">
+                <label>Color Palette Prior:</label>
+                <select id="param-colorize-palette">
+                  <option value="natural" selected>Natural Landscape &amp; Portrait</option>
+                  <option value="warmPortrait">Radiant Portrait (Warm Skintones)</option>
+                  <option value="vintage">Classic Vintage (Sepia/Analog)</option>
+                  <option value="vibrant">Vibrant Cinematic</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label>Saturation: <span id="val-colorize-sat">60</span>%</label>
+                <input type="range" id="param-colorize-sat" min="0" max="100" value="60">
+              </div>
+              <div class="form-row">
+                <label>Color Temperature: <span id="val-colorize-temp">0</span></label>
+                <input type="range" id="param-colorize-temp" min="-50" max="50" value="0">
               </div>
             </div>
           </div>

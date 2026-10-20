@@ -403,6 +403,29 @@ C_{\text{composite}} = C_{\text{base}} \cdot (1 - \alpha_{\text{ink}}) + C_{\tex
 \end{equation}
 During prepress export, spot channels generate independent high-contrast film separation negatives/positives, fully completing commercial print production workflows.
 
+\subsection{Advanced Neural Filters Engine}
+PixelForge Studio incorporates a client-side, zero-dependency Neural Filters Studio (\texttt{NeuralFilters}) executing seven specialized photographic operations non-destructively on Smart Objects or raster layers:
+\begin{enumerate}
+    \item \textbf{Skin Smoothing}: Segments human epidermis in normalized $\text{YC}_\text{b}\text{C}_\text{r}$ space ($77 \le C_b \le 135$, $133 \le C_r \le 175$, $R > G > B$). Edge-preserving bilateral filtering ($w = w_{\text{spatial}} \cdot w_{\text{range}}$) smooths low-frequency blotches while retaining high-frequency skin pores and facial features.
+    \item \textbf{Monocular Depth & Optical Bokeh}: Synthesizes depth maps via edge-energy decay and vertical perspective priors. Renders polygonal Bokeh aperture blurs ($5$ to $8$ blades) with circular creamy modes and specular highlight blooming.
+    \item \textbf{Reinhard Moment Color Transfer}: Converts sRGB to decorrelated $l\alpha\beta$ color space, shifting target mean $\mu_t$ and standard deviation $\sigma_t$ to match reference $\mu_r, \sigma_r$:
+    \begin{equation}
+    l^* = \frac{\sigma_{r,l}}{\sigma_{t,l}}(l_t - \mu_{t,l}) + \mu_{r,l}
+    \end{equation}
+    \item \textbf{Gradient-Adaptive Super Resolution}: Employs a $4\times 4$ bicubic Hermite kernel coupled with Laplacian unsharp micro-structure edge accentuation for $2\times$ and $4\times$ clean upscaling without ringing artifacts.
+    \item \textbf{AI Sky Replacement}: Combines cyan/blue chrominance tests with vertical spatial coherence to generate a feathered alpha boundary, compositing procedural atmospheric skies and harmonizing landscape color bleed.
+    \item \textbf{Total Variation Denoising}: Implements the Rudin-Osher-Fatemi (ROF) / Chambolle gradient-divergence formulation to eliminate high-ISO sensor noise while recovering fine micro-texture.
+    \item \textbf{Neural Semantic Colorization}: Reconstructs natural chrominance from monochrome archival imagery using vertical scene priors, Rec.~709 luminance indexing, and localized palette templates.
+\end{enumerate}
+
+\subsection{Multi-Platform macOS, Windows \& Linux Integration}
+To provide seamless parity across desktop ecosystems, PixelForge delivers tailored runtime environments:
+\begin{itemize}
+    \item \textbf{macOS}: Native hidden-inset window decorations with customized traffic-light offsets, system menu bar integration (\texttt{Menu.setApplicationMenu}), Apple Silicon (\texttt{arm64}) and Intel (\texttt{x64}) DMG/ZIP packaging, Apple glyph mapping ($\Cmd$, $\Opt$, $\Shift$), trackpad pinch-to-zoom gestures, and Retina high-DPI canvas backing-store scaling.
+    \item \textbf{Windows}: Frameless dark title bar with custom window controls and NSIS/Portable installers.
+    \item \textbf{Linux}: Freedesktop-compliant \texttt{.desktop} specifications, AppImage, and Debian \texttt{.deb} packages.
+\end{itemize}
+
 % ══════════════════════════════════════════════════════════════════
 % EMPIRICAL VERIFICATION & BLACK BOX AUDIT
 % ══════════════════════════════════════════════════════════════════
@@ -447,8 +470,9 @@ General Retouching \& Neural Filters & 21 & 312 & 100\% \\
 \end{table}
 
 \subsection{Continuous Integration \& Cross-Platform Deployment}
-Automated cross-platform delivery is orchestrated via GitHub Actions (\texttt{.github/workflows/build-release.yml}). On tag dispatch, a build matrix runs \texttt{npm test} on both Ubuntu Linux and Windows runners across Node.js 20.x and 22.x. Upon passing, Electron Builder packages:
+Automated cross-platform delivery is orchestrated via GitHub Actions (\texttt{.github/workflows/build-release.yml}). On tag dispatch, a build matrix runs \texttt{npm test} across macOS, Windows, and Ubuntu Linux runners across Node.js 20.x and 22.x. Upon passing, Electron Builder packages:
 \begin{itemize}
+    \item \textbf{macOS}: Apple Silicon and Intel universal DMG installers and ZIP archives with hardened runtime.
     \item \textbf{Windows}: NSIS interactive installer and portable standalone executable (\texttt{.exe}).
     \item \textbf{Linux}: AppImage, Debian package (\texttt{.deb}), and compressed archive (\texttt{.tar.gz}).
 \end{itemize}
