@@ -1602,15 +1602,16 @@ class PixelForgeApp {
         gCtx.stroke();
       }
 
-      // Draw curve line
+      // Draw smooth natural spline curve line (Photoshop / Affinity Parity)
       gCtx.strokeStyle = '#3b82f6';
-      gCtx.lineWidth = 2;
+      gCtx.lineWidth = 2.5;
       gCtx.beginPath();
-      this.curvesPoints.forEach((p, idx) => {
-        const canvasY = 255 - p.y;
-        if (idx === 0) gCtx.moveTo(p.x, canvasY);
-        else gCtx.lineTo(p.x, canvasY);
-      });
+      const splineLut = Utils.buildMonotoneCubicSpline(this.curvesPoints);
+      for (let x = 0; x < 256; x++) {
+        const y = 255 - splineLut[x];
+        if (x === 0) gCtx.moveTo(x, y);
+        else gCtx.lineTo(x, y);
+      }
       gCtx.stroke();
 
       // Draw anchor points
@@ -1691,22 +1692,8 @@ class PixelForgeApp {
       const white = parseInt(whiteSlider.value, 10) || 255;
       const gamma = (parseInt(gammaSlider.value, 10) || 100) / 100;
 
-      // Construct LUT from curves points
-      const lut = new Uint8Array(256);
-      for (let i = 0; i < 256; i++) {
-        // Find segment
-        let y = i;
-        for (let j = 0; j < this.curvesPoints.length - 1; j++) {
-          const p1 = this.curvesPoints[j];
-          const p2 = this.curvesPoints[j + 1];
-          if (i >= p1.x && i <= p2.x) {
-            const t = (i - p1.x) / Math.max(1, p2.x - p1.x);
-            y = Math.round(Utils.lerp(p1.y, p2.y, t));
-            break;
-          }
-        }
-        lut[i] = Utils.clamp(y, 0, 255);
-      }
+      // Construct smooth Monotone Cubic Spline LUT from curves points (Photoshop Parity)
+      const lut = Utils.buildMonotoneCubicSpline(this.curvesPoints);
 
       const imgData = active.ctx.getImageData(0, 0, this.width, this.height);
       const output = Utils.applyLevelsAndCurve(imgData, black, white, gamma, lut);

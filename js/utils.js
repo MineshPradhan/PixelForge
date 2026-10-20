@@ -114,7 +114,7 @@ const Utils = {
     }
   },
 
-  // ── BFS Scanline Flood Fill ──
+  // ── High-Speed Scanline Span Flood Fill with Tolerance ──
   floodFill(ctx, startX, startY, fillRgb, tolerance = 32) {
     const w = ctx.canvas.width;
     const h = ctx.canvas.height;
@@ -131,12 +131,12 @@ const Utils = {
     const tB = data[targetIdx + 2];
     const tA = data[targetIdx + 3];
 
-    const fR = fillRgb.r;
-    const fG = fillRgb.g;
-    const fB = fillRgb.b;
+    const fR = fillRgb.r !== undefined ? fillRgb.r : 0;
+    const fG = fillRgb.g !== undefined ? fillRgb.g : 0;
+    const fB = fillRgb.b !== undefined ? fillRgb.b : 0;
     const fA = fillRgb.a !== undefined ? fillRgb.a : 255;
 
-    // Already target color
+    // Already matching fill color within tolerance
     if (Math.abs(tR - fR) <= tolerance &&
         Math.abs(tG - fG) <= tolerance &&
         Math.abs(tB - fB) <= tolerance &&
@@ -149,40 +149,65 @@ const Utils = {
       const dg = Math.abs(data[idx + 1] - tG);
       const db = Math.abs(data[idx + 2] - tB);
       const da = Math.abs(data[idx + 3] - tA);
-      return (dr + dg + db + da) / 4 <= tolerance;
+      return (dr + dg + db + da) * 0.25 <= tolerance;
     };
 
+    // Scanline flood fill with visited buffer & span stack (O(H) memory)
     const visited = new Uint8Array(w * h);
-    const stack = [[startX, startY]];
-    visited[startY * w + startX] = 1;
+    const stack = [];
 
-    while (stack.length > 0) {
-      const [curX, curY] = stack.pop();
-      const idx = (curY * w + curX) * 4;
+    // Find initial seed span
+    let left = startX;
+    while (left > 0 && matchesTarget((startY * w + (left - 1)) * 4)) left--;
+    let right = startX;
+    while (right < w - 1 && matchesTarget((startY * w + (right + 1)) * 4)) right++;
 
+    for (let x = left; x <= right; x++) {
+      visited[startY * w + x] = 1;
+      const idx = (startY * w + x) * 4;
       data[idx] = fR;
       data[idx + 1] = fG;
       data[idx + 2] = fB;
       data[idx + 3] = fA;
+    }
 
-      const neighbors = [
-        [curX + 1, curY],
-        [curX - 1, curY],
-        [curX, curY + 1],
-        [curX, curY - 1]
-      ];
+    if (startY > 0) stack.push([left, right, startY - 1, -1]);
+    if (startY < h - 1) stack.push([left, right, startY + 1, 1]);
 
-      for (let i = 0; i < 4; i++) {
-        const nx = neighbors[i][0];
-        const ny = neighbors[i][1];
-        if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
-          const nPos = ny * w + nx;
-          if (!visited[nPos]) {
-            visited[nPos] = 1;
-            if (matchesTarget(nPos * 4)) {
-              stack.push([nx, ny]);
-            }
+    while (stack.length > 0) {
+      const [x1, x2, y, dy] = stack.pop();
+      let x = x1;
+
+      while (x <= x2) {
+        if (!visited[y * w + x] && matchesTarget((y * w + x) * 4)) {
+          let sStart = x;
+          while (sStart > 0 && !visited[y * w + (sStart - 1)] && matchesTarget((y * w + (sStart - 1)) * 4)) {
+            sStart--;
           }
+          let sEnd = x;
+          while (sEnd < w - 1 && !visited[y * w + (sEnd + 1)] && matchesTarget((y * w + (sEnd + 1)) * 4)) {
+            sEnd++;
+          }
+
+          for (let fillX = sStart; fillX <= sEnd; fillX++) {
+            visited[y * w + fillX] = 1;
+            const idx = (y * w + fillX) * 4;
+            data[idx] = fR;
+            data[idx + 1] = fG;
+            data[idx + 2] = fB;
+            data[idx + 3] = fA;
+          }
+
+          if (y + dy >= 0 && y + dy < h) {
+            stack.push([sStart, sEnd, y + dy, dy]);
+          }
+          if (y - dy >= 0 && y - dy < h) {
+            stack.push([sStart, sEnd, y - dy, -dy]);
+          }
+
+          x = sEnd + 1;
+        } else {
+          x++;
         }
       }
     }
@@ -343,6 +368,102 @@ const Utils = {
       bbox: bounds,
       count: selectedCount
     };
+  },
+
+  // ── Monotone Cubic Spline Interpolation (Fritsch-Carlson) ──
+  buildMonotoneCubicSpline(points) {
+    const lut = new Uint8Array(256);
+    if (!Array.isArray(points) || points.length === 0) {
+      for (let i = 0; i < 256; i++) lut[i] = i;
+      return lut;
+    }
+
+    // Sort copy by x coordinate and clamp
+    const sorted = [...points]
+      .map(p => ({ x: Utils.clamp(Math.round(p.x || 0), 0, 255), y: Utils.clamp(Math.round(p.y || 0), 0, 255) }))
+      .sort((a, b) => a.x - b.x);
+
+    // Ensure boundary points at x=0 and x=255
+    if (sorted[0].x > 0) {
+      sorted.unshift({ x: 0, y: sorted[0].y });
+    }
+    if (sorted[sorted.length - 1].x < 255) {
+      sorted.push({ x: 255, y: sorted[sorted.length - 1].y });
+    }
+
+    // Remove duplicates with same x
+    const unique = [sorted[0]];
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i].x !== unique[unique.length - 1].x) {
+        unique.push(sorted[i]);
+      }
+    }
+
+    const n = unique.length;
+    if (n === 1) {
+      lut.fill(unique[0].y);
+      return lut;
+    }
+
+    // Step 1: Secant slopes delta_k = (y_{k+1} - y_k) / (x_{k+1} - x_k)
+    const deltas = new Float64Array(n - 1);
+    const h = new Float64Array(n - 1);
+    for (let k = 0; k < n - 1; k++) {
+      h[k] = unique[k + 1].x - unique[k].x;
+      deltas[k] = (unique[k + 1].y - unique[k].y) / Math.max(1e-6, h[k]);
+    }
+
+    // Step 2: Tangent slopes d_k
+    const d = new Float64Array(n);
+    d[0] = deltas[0];
+    d[n - 1] = deltas[n - 2];
+    for (let k = 1; k < n - 1; k++) {
+      d[k] = (deltas[k - 1] + deltas[k]) * 0.5;
+    }
+
+    // Step 3 & 4: Fritsch-Carlson monotonicity condition
+    for (let k = 0; k < n - 1; k++) {
+      if (Math.abs(deltas[k]) < 1e-9) {
+        d[k] = 0;
+        d[k + 1] = 0;
+      } else {
+        const alpha = d[k] / deltas[k];
+        const beta = d[k + 1] / deltas[k];
+        const dist = alpha * alpha + beta * beta;
+        if (dist > 9) {
+          const tau = 3 / Math.sqrt(dist);
+          d[k] = tau * alpha * deltas[k];
+          d[k + 1] = tau * beta * deltas[k];
+        }
+      }
+    }
+
+    // Step 5: Evaluate Hermite spline for all integer values x in [0, 255]
+    let seg = 0;
+    for (let x = 0; x < 256; x++) {
+      while (seg < n - 2 && x > unique[seg + 1].x) {
+        seg++;
+      }
+      const x0 = unique[seg].x;
+      const x1 = unique[seg + 1].x;
+      const y0 = unique[seg].y;
+      const y1 = unique[seg + 1].y;
+      const segH = Math.max(1e-6, x1 - x0);
+      const t = (x - x0) / segH;
+      const t2 = t * t;
+      const t3 = t2 * t;
+
+      // Hermite basis functions
+      const h00 = 2 * t3 - 3 * t2 + 1;
+      const h10 = t3 - 2 * t2 + t;
+      const h01 = -2 * t3 + 3 * t2;
+      const h11 = t3 - t2;
+
+      const yVal = h00 * y0 + h10 * segH * d[seg] + h01 * y1 + h11 * segH * d[seg + 1];
+      lut[x] = Utils.clamp(Math.round(yVal), 0, 255);
+    }
+
+    return lut;
   },
 
   // ── Tone Curves & Levels Mapping ──

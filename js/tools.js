@@ -25,6 +25,9 @@ class ToolManager {
     this.brushScatter = 0;
     this.brushSizeJitter = 0;
     this.brushAngleJitter = 0;
+    this.brushSmoothing = 20; // 0-100% stroke stabilization (Photoshop / Clip Studio Parity)
+    this.smoothX = null;
+    this.smoothY = null;
     this.brushTip = 'round'; // 'round'|'soft-round'|'chisel'|'bristle'|'splatter'|'airbrush'
     this.brushTexture = 'none'; // 'none'|'canvas'|'charcoal'|'watercolor'|'chalk'|'grunge'
     this.brushTextureScale = 100;
@@ -207,6 +210,7 @@ class ToolManager {
     bindNumericControl('brush-scatter', 'brush-scatter-input', 'brush-scatter-val', 'brushScatter', 0, 100, '%');
     bindNumericControl('brush-size-jitter', 'brush-size-jitter-input', 'brush-size-jitter-val', 'brushSizeJitter', 0, 100, '%');
     bindNumericControl('brush-angle-jitter', 'brush-angle-jitter-input', 'brush-angle-jitter-val', 'brushAngleJitter', 0, 100, '%');
+    bindNumericControl('brush-smoothing', 'brush-smoothing-input', 'brush-smoothing-val', 'brushSmoothing', 0, 100, '%');
 
     // Brush Tip Preset Selector
     const brushTipSel = document.getElementById('brush-tip-select');
@@ -1262,6 +1266,8 @@ class ToolManager {
     this.startY = coords.y;
     this.lastX = coords.x;
     this.lastY = coords.y;
+    this.smoothX = coords.x;
+    this.smoothY = coords.y;
     this.currentPressure = (e.pressure !== undefined && e.pressure > 0) ? e.pressure : 1.0;
     this.isMouseDown = true;
 
@@ -1481,7 +1487,7 @@ class ToolManager {
   onPointerMove(e) {
     const coords = this.getDocCoords(e);
 
-    const statusCoords = document.getElementById('status-coords');
+    const statusCoords = (typeof document !== 'undefined') ? document.getElementById('status-coords') : null;
     if (statusCoords) {
       statusCoords.textContent = `X: ${Math.round(coords.x)} px, Y: ${Math.round(coords.y)} px`;
     }
@@ -1596,17 +1602,32 @@ class ToolManager {
       case 'mixer-brush':
       case 'pencil':
       case 'eraser':
+        let currentTargetX = coords.x;
+        let currentTargetY = coords.y;
+        if (this.brushSmoothing > 0 && this.smoothX !== null && this.smoothY !== null) {
+          const factor = Math.min(0.92, (this.brushSmoothing / 100) * 0.82);
+          this.smoothX = this.smoothX + (coords.x - this.smoothX) * (1 - factor);
+          this.smoothY = this.smoothY + (coords.y - this.smoothY) * (1 - factor);
+          currentTargetX = this.smoothX;
+          currentTargetY = this.smoothY;
+        } else {
+          this.smoothX = coords.x;
+          this.smoothY = coords.y;
+        }
+
         if (this.app.symmetryEngine && this.app.symmetryEngine.enabled) {
           const symPointsPrev = this.app.symmetryEngine.getSymmetricPoints(this.lastX, this.lastY);
-          const symPointsCurr = this.app.symmetryEngine.getSymmetricPoints(coords.x, coords.y);
+          const symPointsCurr = this.app.symmetryEngine.getSymmetricPoints(currentTargetX, currentTargetY);
           for (let i = 0; i < symPointsCurr.length; i++) {
             const p1 = symPointsPrev[i] || symPointsPrev[0];
             const p2 = symPointsCurr[i];
             this.drawStroke(activeLayer, p1.x, p1.y, p2.x, p2.y, this.currentPressure);
           }
         } else {
-          this.drawStroke(activeLayer, this.lastX, this.lastY, coords.x, coords.y, this.currentPressure);
+          this.drawStroke(activeLayer, this.lastX, this.lastY, currentTargetX, currentTargetY, this.currentPressure);
         }
+        this.lastX = currentTargetX;
+        this.lastY = currentTargetY;
         this.app.renderComposite();
         break;
 
@@ -1709,8 +1730,10 @@ class ToolManager {
         break;
     }
 
-    this.lastX = coords.x;
-    this.lastY = coords.y;
+    if (!['brush', 'mixer-brush', 'pencil', 'eraser'].includes(this.currentTool)) {
+      this.lastX = coords.x;
+      this.lastY = coords.y;
+    }
   }
 
   onPointerUp(e) {
@@ -1721,6 +1744,8 @@ class ToolManager {
 
     if (!this.isMouseDown) return;
     this.isMouseDown = false;
+    this.smoothX = null;
+    this.smoothY = null;
 
     if (this.isTransforming) {
       this.activeHandle = null;
