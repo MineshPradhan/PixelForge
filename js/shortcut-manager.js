@@ -146,10 +146,12 @@
     constructor(options = {}) {
       if (typeof options.isMac === 'boolean') {
         this.isMac = options.isMac;
-      } else if (typeof navigator !== 'undefined') {
+      } else if (typeof window !== 'undefined' && typeof navigator !== 'undefined') {
+        // In browser or Electron renderer window environments, detect macOS from navigator
         this.isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform) || /Macintosh/.test(navigator.userAgent);
       } else {
-        // Default to standard representation in Node/test environments to ensure deterministic cross-platform CI tests
+        // In Node.js / headless CI test environments (where global.navigator exists in Node 21+),
+        // default to standard representation to ensure deterministic cross-platform unit test assertions
         this.isMac = false;
       }
       this.currentProfile = 'photoshop';
